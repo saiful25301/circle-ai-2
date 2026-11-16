@@ -193,14 +193,14 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
 
               {/* Message Bubble */}
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed shadow-xs ${
+                className={`max-w-[90%] sm:max-w-[85%] rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 text-xs leading-relaxed shadow-xs break-words overflow-hidden ${
                   isCustomer
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-br-none font-medium'
                     : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                 }`}
               >
                 {/* Text Content */}
-                <div className="whitespace-pre-wrap">{msg.content}</div>
+                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
 
                 {/* Inline Diagnostic Summary */}
                 {msg.tool_calls && msg.tool_calls.length > 0 && (

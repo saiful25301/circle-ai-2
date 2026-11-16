@@ -51,7 +51,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto widget-scroll p-6 space-y-6 bg-slate-50 text-slate-900">
+    <div className="flex-1 overflow-y-auto widget-scroll p-3 sm:p-6 space-y-4 sm:space-y-6 bg-slate-50 text-slate-900">
       {/* Top Banner: Circle Network NOC Status (Warm Light Theme) */}
       <div className="bg-gradient-to-r from-amber-50/70 via-white to-orange-50/50 border border-amber-200/90 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

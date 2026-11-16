@@ -8,18 +8,18 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ activeView, setActiveView }) => {
   return (
-    <header className="h-16 border-b border-slate-200 bg-white/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40 select-none shadow-xs">
+    <header className="h-16 border-b border-slate-200 bg-white/95 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 select-none shadow-xs max-w-full overflow-hidden">
       {/* Official Brand Logo with clean container */}
-      <div className="flex items-center gap-4">
-        <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-xs flex items-center">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="bg-white px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-200/90 shadow-xs flex items-center">
           <img
             src="/circle_network_logo.webp"
             alt="Circle Network"
-            className="h-9 w-auto max-w-[200px] object-contain drop-shadow-xs"
+            className="h-7 sm:h-9 w-auto max-w-[110px] sm:max-w-[200px] object-contain drop-shadow-xs"
           />
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
+        <div className="hidden md:flex items-center gap-2 pl-3 border-l border-slate-200">
           <span className="px-2.5 py-0.5 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300/80 rounded-full shadow-2xs">
             Circle AI
           </span>
@@ -28,39 +28,45 @@ export const Navbar: React.FC<NavbarProps> = ({ activeView, setActiveView }) => 
       </div>
 
       {/* View Switcher Controls */}
-      <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
+      <div className="flex items-center bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200 shadow-inner max-w-full overflow-x-auto widget-scroll">
         <button
           onClick={() => setActiveView('widget')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
             activeView === 'widget'
               ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
           }`}
+          title="Customer Messenger Widget View"
         >
-          <MessageSquareText className="w-3.5 h-3.5" />
-          Messenger Widget
+          <MessageSquareText className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">Messenger Widget</span>
+          <span className="sm:hidden">Widget</span>
         </button>
         <button
           onClick={() => setActiveView('dashboard')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
             activeView === 'dashboard'
               ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
           }`}
+          title="Admin Support Desk & Shared Inbox"
         >
-          <LayoutDashboard className="w-3.5 h-3.5" />
-          Support Desk
+          <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">Support Desk</span>
+          <span className="sm:hidden">Desk</span>
         </button>
         <button
           onClick={() => setActiveView('split')}
-          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
             activeView === 'split'
               ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900'
           }`}
+          title="Dual Live View (Support Desk + Customer Messenger)"
         >
-          <Columns className="w-3.5 h-3.5" />
-          Dual Live View
+          <Columns className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">Dual Live View</span>
+          <span className="sm:hidden">Dual</span>
         </button>
       </div>
 

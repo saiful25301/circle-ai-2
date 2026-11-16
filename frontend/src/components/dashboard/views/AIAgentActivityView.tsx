@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Shield,
   Database,
+  X,
 } from 'lucide-react';
 import { AIToolActivityLog } from '../types';
 import { api } from '../../../services/api';
@@ -175,82 +176,94 @@ export const AIAgentActivityView: React.FC = () => {
               </p>
             </div>
           ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider select-none sticky top-0 z-10 font-semibold">
-                <tr>
-                  <th className="py-3 px-4">Time</th>
-                  <th className="py-3 px-4">ISP Tool Function</th>
-                  <th className="py-3 px-4">Subscriber</th>
-                  <th className="py-3 px-4">Latency</th>
-                  <th className="py-3 px-4">Outcome</th>
-                  <th className="py-3 px-4 text-right">Escalation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {logs.map((log) => {
-                  const isSelected = selectedLog?.id === log.id;
-                  const isSuccess = log.isSuccess !== false;
+            <div className="w-full overflow-x-auto widget-scroll">
+              <table className="w-full text-left text-xs min-w-[600px]">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider select-none sticky top-0 z-10 font-semibold">
+                  <tr>
+                    <th className="py-3 px-4">Time</th>
+                    <th className="py-3 px-4">ISP Tool Function</th>
+                    <th className="py-3 px-4">Subscriber</th>
+                    <th className="py-3 px-4">Latency</th>
+                    <th className="py-3 px-4">Outcome</th>
+                    <th className="py-3 px-4 text-right">Escalation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {logs.map((log) => {
+                    const isSelected = selectedLog?.id === log.id;
+                    const isSuccess = log.isSuccess !== false;
 
-                  return (
-                    <tr
-                      key={log.id}
-                      onClick={() => setSelectedLog(log)}
-                      className={`cursor-pointer transition-colors ${
-                        isSelected ? 'bg-amber-50/80 font-medium' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.timestamp}</td>
-                      <td className="py-3 px-4 font-bold text-amber-700">
-                        <span className="flex items-center gap-1.5">
-                          <Zap className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          <span className="font-mono">{log.toolName}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-slate-800 font-semibold">{log.subscriberId || 'CN-GUEST'}</td>
-                      <td className="py-3 px-4 font-mono text-slate-600">{log.executionTimeMs} ms</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            isSuccess
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {isSuccess ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                          <span>{isSuccess ? 'Success' : 'Error'}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {log.escalated ? (
-                          <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold">
-                            ESCALATED
+                    return (
+                      <tr
+                        key={log.id}
+                        onClick={() => setSelectedLog(log)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected ? 'bg-amber-50/80 font-medium' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.timestamp}</td>
+                        <td className="py-3 px-4 font-bold text-amber-700">
+                          <span className="flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span className="font-mono">{log.toolName}</span>
                           </span>
-                        ) : (
-                          <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
-                            AI RESOLVED
+                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-800 font-semibold">{log.subscriberId || 'CN-GUEST'}</td>
+                        <td className="py-3 px-4 font-mono text-slate-600">{log.executionTimeMs} ms</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isSuccess
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {isSuccess ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                            <span>{isSuccess ? 'Success' : 'Error'}</span>
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {log.escalated ? (
+                            <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold">
+                              ESCALATED
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                              AI RESOLVED
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Right Detail Inspection Panel */}
+      {/* Right Detail Inspection Panel (Responsive Drawer on mobile/tablet) */}
       {selectedLog && (
-        <div className="w-96 border-l border-slate-200 bg-white p-5 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-xl animate-slideUp">
-          <div className="border-b border-slate-200 pb-3">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-amber-600 font-bold">
-              EXECUTION PAYLOAD INSPECTOR
-            </span>
-            <h3 className="text-sm font-bold text-slate-900 mt-1 flex items-center gap-1.5 font-mono">
-              <Code2 className="w-4 h-4 text-amber-600" />
-              {selectedLog.toolName}
-            </h3>
+        <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm sm:max-w-md lg:static lg:w-96 lg:z-auto border-l border-slate-200 bg-white p-5 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-2xl lg:shadow-xl animate-slideUp">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-amber-600 font-bold">
+                EXECUTION PAYLOAD INSPECTOR
+              </span>
+              <h3 className="text-sm font-bold text-slate-900 mt-1 flex items-center gap-1.5 font-mono">
+                <Code2 className="w-4 h-4 text-amber-600" />
+                {selectedLog.toolName}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedLog(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              title="Close inspection panel"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="space-y-3 text-xs">

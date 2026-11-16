@@ -45,16 +45,16 @@ export const WidgetMessageInput: React.FC<WidgetMessageInputProps> = ({
   const quickChips = t.quickQuestions.slice(0, 4);
 
   return (
-    <div className="bg-white border-t border-slate-200 p-3 space-y-2 shadow-2xs">
+    <div className="bg-white border-t border-slate-200 p-2.5 sm:p-3 space-y-2 shadow-2xs shrink-0">
       {/* Horizontal Suggested Quick Chips */}
-      <div className="flex gap-1.5 overflow-x-auto widget-scroll pb-1">
+      <div className="flex gap-1.5 overflow-x-auto widget-scroll pb-1 touch-pan-x -mx-0.5 px-0.5">
         {quickChips.map((chip) => (
           <button
             key={chip.id}
             type="button"
             onClick={() => onQuickChipClick(chip.query)}
             disabled={disabled}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-900 text-[11px] font-semibold whitespace-nowrap transition-all active:scale-95 disabled:opacity-50 shadow-2xs"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-900 text-[11px] font-semibold whitespace-nowrap transition-all active:scale-95 disabled:opacity-50 shadow-2xs shrink-0"
           >
             <span>{chip.label}</span>
           </button>

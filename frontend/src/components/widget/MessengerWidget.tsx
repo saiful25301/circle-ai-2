@@ -322,15 +322,15 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed inset-0 sm:inset-auto sm:bottom-6 sm:right-6 z-50 flex items-center justify-center sm:block">
       {isOpen ? (
-        <div className="w-[420px] h-[640px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)]">
+        <div className="w-full h-full sm:w-[420px] sm:h-[640px] sm:max-w-[calc(100vw-2rem)] sm:max-h-[calc(100vh-5rem)]">
           {widgetContent}
         </div>
       ) : (
         <button
           onClick={() => setIsOpen(true)}
-          className="group flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-5 py-3.5 rounded-full shadow-2xl shadow-emerald-500/30 transition-all hover:scale-105"
+          className="fixed bottom-6 right-6 group flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-5 py-3.5 rounded-full shadow-2xl shadow-emerald-500/30 transition-all hover:scale-105"
         >
           <div className="relative">
             <Bot className="w-6 h-6 text-white" />

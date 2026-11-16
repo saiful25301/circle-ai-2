@@ -101,7 +101,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   return (
     <aside
       className={`bg-white border-r border-slate-200 flex flex-col justify-between transition-all duration-300 select-none shrink-0 shadow-xs ${
-        collapsed ? 'w-20' : 'w-64'
+        collapsed ? 'w-16 md:w-20' : 'w-56 md:w-64'
       }`}
     >
       {/* Top Brand Logo Section */}

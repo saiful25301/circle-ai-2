@@ -36,15 +36,15 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
   const t = translations[language];
 
   return (
-    <header className="bg-white text-slate-900 border-b border-slate-200 px-4 py-3 select-none shadow-xs relative z-20">
-      <div className="flex items-center justify-between gap-3">
+    <header className="bg-white text-slate-900 border-b border-slate-200 px-2.5 sm:px-4 py-2 sm:py-3 select-none shadow-xs relative z-20">
+      <div className="flex items-center justify-between gap-1.5 sm:gap-3">
         {/* Left Side: Back Button + Logo + Clean Title & Subtitle */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           {currentView !== 'home' && (
             <button
               type="button"
               onClick={() => onNavigate('home')}
-              className="p-1.5 -ml-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+              className="p-1 -ml-0.5 sm:-ml-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
               title="Back to Home"
               aria-label="Back to Home"
             >
@@ -53,22 +53,22 @@ export const WidgetHeader: React.FC<WidgetHeaderProps> = ({
           )}
 
           {/* Official Circle Network Logo in clean container */}
-          <div className="bg-white px-2 py-1 rounded-lg border border-slate-200/80 shadow-2xs flex items-center shrink-0">
+          <div className="bg-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-slate-200/80 shadow-2xs flex items-center shrink-0">
             <img
               src={logoUrl}
               alt="Circle Network"
-              className="h-7 w-auto max-w-[140px] object-contain select-none"
+              className="h-6 sm:h-7 w-auto max-w-[95px] sm:max-w-[140px] object-contain select-none"
               loading="eager"
             />
           </div>
 
           {/* Title & "Our team can also help" Subtitle */}
-          <div className="min-w-0 pl-1">
-            <div className="flex items-center gap-1.5 leading-tight">
-              <span className="font-bold text-sm text-slate-900 tracking-tight">Circle AI</span>
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+          <div className="min-w-0 pl-0.5 sm:pl-1">
+            <div className="flex items-center gap-1 sm:gap-1.5 leading-tight">
+              <span className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight">Circle AI</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
             </div>
-            <p className="text-[11px] text-slate-500 truncate font-medium leading-tight mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-slate-500 truncate font-medium leading-tight mt-0.5 max-w-[100px] sm:max-w-none">
               {t.teamSubtitle}
             </p>
           </div>

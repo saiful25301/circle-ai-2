@@ -65,7 +65,7 @@ For billing or invoice questions, use check_subscriber_billing tool to check due
   };
 
   return (
-    <div className="flex-1 overflow-y-auto widget-scroll p-6 space-y-6 bg-slate-50 text-slate-900 max-w-5xl">
+    <div className="flex-1 overflow-y-auto widget-scroll p-3 sm:p-6 space-y-4 sm:space-y-6 bg-slate-50 text-slate-900 max-w-5xl">
       <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">

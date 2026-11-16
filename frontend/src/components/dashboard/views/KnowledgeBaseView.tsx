@@ -389,7 +389,7 @@ export const KnowledgeBaseView: React.FC = () => {
         </div>
 
         {/* Live Semantic Search / Ask KB Preview Card */}
-        <div className="mx-6 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-white border border-amber-200/80 shadow-2xs">
+        <div className="mx-3 sm:mx-6 mt-3 sm:mt-4 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-white border border-amber-200/80 shadow-2xs">
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-600" />
@@ -648,9 +648,9 @@ export const KnowledgeBaseView: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Drawer: Detailed Article Viewer */}
+      {/* Right Drawer: Detailed Article Viewer (Responsive Drawer on Mobile/Tablet) */}
       {selectedArticle && (
-        <div className="w-96 border-l border-slate-200 bg-white p-6 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-xl animate-slideUp">
+        <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm sm:max-w-md lg:static lg:w-96 lg:z-auto border-l border-slate-200 bg-white p-4 sm:p-6 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-2xl lg:shadow-xl animate-slideUp">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-bold">
               {selectedArticle.category.toUpperCase()}

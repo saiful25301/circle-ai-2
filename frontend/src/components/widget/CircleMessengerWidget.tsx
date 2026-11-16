@@ -317,8 +317,8 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
     ? 'w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-lg border border-slate-200 bg-white'
     : `fixed z-50 transition-all duration-300 flex flex-col overflow-hidden shadow-2xl border border-slate-200/90 bg-white ${
         isMaximized
-          ? 'inset-4 sm:inset-10 rounded-2xl'
-          : 'bottom-5 right-5 sm:bottom-24 sm:right-6 w-full sm:w-[410px] h-[100dvh] sm:h-[660px] max-h-[100dvh] sm:max-h-[85vh] rounded-none sm:rounded-2xl'
+          ? 'inset-0 sm:inset-6 md:inset-10 sm:rounded-2xl'
+          : 'inset-0 sm:inset-auto sm:bottom-24 sm:right-6 w-full sm:w-[410px] h-[100dvh] sm:h-[660px] max-h-[100dvh] sm:max-h-[85vh] rounded-none sm:rounded-2xl'
       }`;
 
   return (

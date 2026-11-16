@@ -29,7 +29,7 @@ import { api, AuthUser } from '../../services/api';
 export const AdminDashboard: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => api.getAuthUser());
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 1024);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);

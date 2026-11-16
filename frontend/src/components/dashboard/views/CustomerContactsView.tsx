@@ -133,7 +133,7 @@ export const CustomerContactsView: React.FC = () => {
 
         {/* Directory Table */}
         <div className="flex-1 overflow-auto widget-scroll bg-white">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[680px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider select-none sticky top-0 z-10 font-semibold">
               <tr>
                 <th className="py-3 px-4">Subscriber</th>
@@ -210,9 +210,9 @@ export const CustomerContactsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Slide-over Customer Profile Drawer */}
+      {/* Right Slide-over Customer Profile Drawer (Responsive Slide-Over on Mobile/Tablet) */}
       {selectedSub && (
-        <div className="w-88 border-l border-slate-200 bg-white p-5 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-xl animate-slideUp">
+        <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm sm:max-w-md lg:static lg:w-88 lg:z-auto border-l border-slate-200 bg-white p-5 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-2xl lg:shadow-xl animate-slideUp">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div>
               <h3 className="font-bold text-sm text-slate-900">{selectedSub.fullName}</h3>

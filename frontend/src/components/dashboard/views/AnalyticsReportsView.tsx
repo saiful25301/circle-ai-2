@@ -90,15 +90,15 @@ export const AnalyticsReportsView: React.FC = () => {
         </div>
 
         {/* Date Filter & Actions */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 text-xs shadow-2xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 ml-2 mr-1" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 text-xs shadow-2xs max-w-full overflow-x-auto widget-scroll">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 ml-2 mr-1 shrink-0" />
             {(['today', 'last_7_days', 'last_30_days', 'all_time'] as TimeRangeOption[]).map((range) => (
               <button
                 key={range}
                 type="button"
                 onClick={() => setTimeRange(range)}
-                className={`px-3 py-1 rounded-lg font-bold capitalize transition-all cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1 rounded-lg font-bold capitalize whitespace-nowrap transition-all cursor-pointer ${
                   timeRange === range
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-2xs'
                     : 'text-slate-600 hover:text-slate-900'

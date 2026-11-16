@@ -109,26 +109,26 @@ export const DashboardTopNav: React.FC<DashboardTopNavProps> = ({
   ];
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between select-none relative z-30 shadow-2xs">
+    <header className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between select-none relative z-30 shadow-2xs max-w-full overflow-hidden">
       {/* Active Section Breadcrumb */}
-      <div>
-        <h1 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <span>{currentMeta.title}</span>
-          <span className="text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
+      <div className="min-w-0 pr-2">
+        <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight flex items-center gap-1.5 sm:gap-2 truncate">
+          <span className="truncate">{currentMeta.title}</span>
+          <span className="hidden md:inline text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full font-bold shrink-0">
             WORKSPACE
           </span>
         </h1>
-        <p className="text-[11px] text-slate-500 font-medium">{currentMeta.subtitle}</p>
+        <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate hidden sm:block">{currentMeta.subtitle}</p>
       </div>
 
       {/* Center Search Input */}
-      <div className="hidden md:flex items-center w-80 relative">
+      <div className="hidden lg:flex items-center w-64 xl:w-80 relative">
         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search subscribers, PPPoE, tickets, or messages..."
+          placeholder="Search subscribers, PPPoE, tickets..."
           className="w-full bg-slate-50 border border-slate-200 focus:border-amber-500 focus:bg-white rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-colors shadow-2xs"
         />
         {searchQuery && (
@@ -143,15 +143,16 @@ export const DashboardTopNav: React.FC<DashboardTopNavProps> = ({
       </div>
 
       {/* Right Actions & Notifications */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* New Ticket CTA Button (Golden-Amber Gradient) */}
         <button
           type="button"
           onClick={onOpenNewTicketModal}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
+          className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-xs transition-all active:scale-95 shrink-0"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Ticket</span>
+          <Plus className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden sm:inline">New Ticket</span>
+          <span className="sm:hidden">Ticket</span>
         </button>
 
         {/* Notifications Bell */}

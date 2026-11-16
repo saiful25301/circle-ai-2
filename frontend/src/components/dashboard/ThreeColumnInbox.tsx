@@ -15,6 +15,8 @@ import {
   ArrowRightLeft,
   ShieldCheck,
   AlertTriangle,
+  ArrowLeft,
+  Info,
 } from 'lucide-react';
 import { Conversation, Customer } from '../../types';
 import { SubscriberContact } from './types';
@@ -37,6 +39,7 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
   onCreateTicket,
 }) => {
   const [selectedConvId, setSelectedConvId] = useState<string>('');
+  const [mobileTab, setMobileTab] = useState<'conversations' | 'chat' | 'telemetry'>('chat');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFolder, setActiveFolder] = useState<'all' | 'pending' | 'active' | 'ai' | 'resolved'>('all');
   const [replyText, setReplyText] = useState('');
@@ -249,9 +252,52 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
   const isCustomerVerified = activeConversation?.metadata_info?.verified === true || Boolean(customerDetails);
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-slate-50 w-full">
+      {/* ── Mobile/Tablet Responsive Switcher (< 1024px) ── */}
+      <div className="lg:hidden flex items-center justify-between p-2 bg-slate-100 border-b border-slate-200 text-xs shrink-0 select-none">
+        <div className="flex items-center gap-1 w-full bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setMobileTab('conversations')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-center text-xs transition-all ${
+              mobileTab === 'conversations'
+                ? 'bg-amber-500 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Conversations ({filteredConversations.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('chat')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-center text-xs transition-all ${
+              mobileTab === 'chat'
+                ? 'bg-amber-500 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Chat ({activeSubscriberId})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('telemetry')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-center text-xs transition-all ${
+              mobileTab === 'telemetry'
+                ? 'bg-amber-500 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Subscriber & OLT
+          </button>
+        </div>
+      </div>
+
       {/* ── COLUMN 1: Conversation List & Filter Bar ── */}
-      <div className="w-80 md:w-88 border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs">
+      <div
+        className={`w-full lg:w-80 xl:w-88 border-r border-slate-200 bg-white flex flex-col shrink-0 shadow-2xs ${
+          mobileTab === 'conversations' ? 'flex' : 'hidden lg:flex'
+        }`}
+      >
         {/* Search & Folder Tabs */}
         <div className="p-3 border-b border-slate-200 space-y-2.5 bg-slate-50/80">
           <div className="relative">
@@ -317,7 +363,10 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setSelectedConvId(conv.id)}
+                  onClick={() => {
+                    setSelectedConvId(conv.id);
+                    setMobileTab('chat');
+                  }}
                   className={`p-3.5 cursor-pointer transition-all select-none ${
                     isSelected
                       ? 'bg-amber-50/70 border-l-4 border-amber-500'
@@ -384,23 +433,38 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
       </div>
 
       {/* ── COLUMN 2: Conversation Stream & Reply Composer ── */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+      <div
+        className={`flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0 ${
+          mobileTab === 'chat' ? 'flex' : 'hidden lg:flex'
+        }`}
+      >
         {/* Header with Mode, Status & Escalation actions */}
-        <div className="p-3 px-5 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+        <div className="p-2.5 sm:p-3 px-3 sm:px-5 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-2 sm:gap-3 shadow-2xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Back button on mobile */}
+            <button
+              type="button"
+              onClick={() => setMobileTab('conversations')}
+              className="lg:hidden p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+              title="Back to conversation list"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">List</span>
+            </button>
+
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
               {activeSubscriberId.split('-')[1]?.substring(0, 2) || 'CN'}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-slate-900">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
                   {customerDetails?.full_name || fallbackSubscriber.fullName}
                 </h3>
-                <span className="font-mono text-xs text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold">
+                <span className="font-mono text-[10px] sm:text-xs text-amber-800 bg-amber-50 px-1.5 sm:px-2 py-0.5 rounded border border-amber-200 font-bold shrink-0">
                   {activeSubscriberId}
                 </span>
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                  className={`text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0 ${
                     isCustomerVerified
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-amber-50 text-amber-800 border border-amber-200'
@@ -525,6 +589,17 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
                 <span>Mark Resolved</span>
               </button>
             )}
+
+            {/* Mobile View OLT Telemetry Button */}
+            <button
+              type="button"
+              onClick={() => setMobileTab('telemetry')}
+              className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold transition-colors shadow-2xs"
+              title="View Subscriber & OLT Telemetry"
+            >
+              <Info className="w-3.5 h-3.5 text-amber-600" />
+              <span>OLT Profile</span>
+            </button>
           </div>
         </div>
 
@@ -748,7 +823,23 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
       </div>
 
       {/* ── COLUMN 3: Customer ISP Profile & Telemetry Panel ── */}
-      <div className="w-80 border-l border-slate-200 bg-white p-4 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-2xs">
+      <div
+        className={`w-full lg:w-80 xl:w-96 border-l border-slate-200 bg-white p-4 overflow-y-auto widget-scroll space-y-4 shrink-0 shadow-2xs ${
+          mobileTab === 'telemetry' ? 'block' : 'hidden lg:block'
+        }`}
+      >
+        {/* Mobile Back Button to Chat */}
+        <div className="lg:hidden flex items-center justify-between pb-2 border-b border-slate-100">
+          <button
+            type="button"
+            onClick={() => setMobileTab('chat')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Active Chat</span>
+          </button>
+        </div>
+
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-amber-600" />
