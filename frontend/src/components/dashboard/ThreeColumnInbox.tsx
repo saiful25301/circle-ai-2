@@ -312,14 +312,40 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
                 >
                   <div className="whitespace-pre-wrap">{m.content}</div>
 
-                  {/* Inline Tool Execution Results */}
+                  {/* Inline Tool Execution Badges & Telemetry Logs */}
                   {m.tool_calls && m.tool_calls.length > 0 && (
-                    <div className="mt-2.5 pt-2.5 border-t border-amber-200 text-[11px] space-y-1 font-mono">
-                      <div className="text-amber-800 font-bold flex items-center gap-1">
-                        <Zap className="w-3 h-3 text-amber-600" /> Tool Executed: {m.tool_calls[0].tool_name}
+                    <div className="mt-2.5 pt-2 border-t border-amber-200/80 space-y-1.5">
+                      <div className="text-[10px] uppercase tracking-wider font-bold text-amber-800/80 flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-amber-600" />
+                        <span>AI Agent Tool Executions ({m.tool_calls.length})</span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg text-slate-700 text-[10px] border border-amber-200">
-                        {JSON.stringify(m.tool_calls[0].result, null, 2)}
+                      <div className="space-y-1.5">
+                        {m.tool_calls.map((tc: any, tcIdx: number) => (
+                          <div
+                            key={tcIdx}
+                            className="bg-white/90 rounded-lg p-2 border border-amber-200/90 text-[10px] font-mono shadow-2xs"
+                          >
+                            <div className="flex items-center justify-between font-bold text-amber-900 mb-1">
+                              <span className="flex items-center gap-1 text-amber-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                {tc.tool_name}
+                              </span>
+                              {tc.duration_ms !== undefined && (
+                                <span className="text-[9px] text-slate-400 font-normal">
+                                  {tc.duration_ms}ms
+                                </span>
+                              )}
+                            </div>
+                            {tc.arguments && Object.keys(tc.arguments).length > 0 && (
+                              <div className="text-slate-500 text-[9px] truncate">
+                                args: {JSON.stringify(tc.arguments)}
+                              </div>
+                            )}
+                            <div className="mt-1 bg-slate-50 rounded p-1 text-slate-700 max-h-24 overflow-y-auto widget-scroll text-[9px]">
+                              {typeof tc.result === 'object' ? JSON.stringify(tc.result, null, 2) : String(tc.result)}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
