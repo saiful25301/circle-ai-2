@@ -75,26 +75,41 @@ async def websocket_chat_endpoint(websocket: WebSocket, conversation_id: str):
                 conv = conv_res.scalar_one_or_none()
                 if conv and conv.status in ["ai_handling", "open"] and sender_type == "customer":
                     try:
+                        # Load history
+                        hist_res = await db.execute(
+                            select(Message)
+                            .where(Message.conversation_id == conversation_id)
+                            .order_by(Message.created_at.asc())
+                        )
+                        prior_msgs = hist_res.scalars().all()
+                        chat_history = [
+                            {"role": "user" if m.sender_type == "customer" else "model", "content": m.content}
+                            for m in prior_msgs if m.id != msg_id
+                        ]
+
                         ai_res = await process_chat(
+                            conversation_id=conversation_id,
                             user_message=content,
                             customer_id=conv.subscriber_id,
-                            conversation_history=[{"role": "user", "content": content}]
+                            conversation_history=chat_history,
+                            db=db
                         )
 
                         ai_msg_id = f"msg-{str(uuid.uuid4())[:8]}"
                         ai_now = datetime.now(timezone.utc)
+                        ai_content = ai_res.get("reply") or ai_res.get("response") or "Thank you for reaching out to Circle Network."
                         ai_db_msg = Message(
                             id=ai_msg_id,
                             conversation_id=conversation_id,
                             sender_type="ai_agent",
                             sender_name="Circle AI",
-                            content=ai_res.get("response", "Thank you for reaching out to Circle Network."),
+                            content=ai_content,
                             tool_calls=ai_res.get("tool_calls"),
                             created_at=ai_now,
                             updated_at=ai_now,
                         )
                         db.add(ai_db_msg)
-                        if ai_res.get("escalate_to_human"):
+                        if ai_res.get("should_escalate") or ai_res.get("escalate_to_human"):
                             conv.status = "agent_handling"
                             conv.priority = "urgent"
                         await db.commit()
@@ -104,13 +119,15 @@ async def websocket_chat_endpoint(websocket: WebSocket, conversation_id: str):
                             "conversation_id": conversation_id,
                             "sender_type": "ai_agent",
                             "sender_name": "Circle AI",
-                            "content": ai_res.get("response"),
+                            "content": ai_content,
                             "tool_calls": ai_res.get("tool_calls"),
                             "created_at": ai_now.isoformat(),
                         }
                         await ws_manager.broadcast_to_conversation(conversation_id, {
                             "type": "new_message",
-                            "message": ai_msg
+                            "message": ai_msg,
+                            "event": "new_message",
+                            "data": ai_msg
                         })
                     except Exception as ai_err:
                         logger.error(f"WebSocket AI agent error: {ai_err}")

@@ -11,11 +11,12 @@ router = APIRouter()
 
 
 @router.post("/chat", response_model=AgentChatResponse)
-async def chat_with_agent(payload: AgentChatRequest):
+async def chat_with_agent(payload: AgentChatRequest, db: AsyncSession = Depends(get_db)):
     result = await process_chat(
         conversation_id=payload.conversation_id,
         user_message=payload.message,
-        customer_id=payload.customer_id
+        customer_id=payload.customer_id,
+        db=db
     )
     return AgentChatResponse(**result)
 
