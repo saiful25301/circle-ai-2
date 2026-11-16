@@ -27,7 +27,7 @@ export interface ToolCallItem {
 export interface Message {
   id: string;
   conversation_id: string;
-  sender_type: 'customer' | 'ai_agent' | 'human_agent' | 'system';
+  sender_type: 'customer' | 'ai_agent' | 'human_agent' | 'system' | 'internal_note';
   sender_name?: string;
   content: string;
   tool_calls?: ToolCallItem[] | null;
@@ -37,8 +37,11 @@ export interface Message {
 export interface Conversation {
   id: string;
   customer_id?: string;
+  subscriber_id?: string;
+  customer_name?: string;
+  customer_phone?: string;
   channel: string;
-  status: 'ai_handling' | 'agent_handling' | 'resolved' | 'closed';
+  status: 'ai_handling' | 'agent_handling' | 'resolved' | 'closed' | 'waiting_for_agent' | 'human_takeover' | 'AI_ACTIVE' | 'open' | string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   assigned_agent_id?: string | null;
   metadata_info?: Record<string, any>;

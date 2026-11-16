@@ -1,20 +1,23 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.models.conversation import Conversation, Message
 from app.models.customer import Customer
+from app.models.agent import Agent
 from app.schemas.conversation import (
     ConversationResponse,
     ConversationCreate,
     MessageCreate,
     MessageResponse,
     ConversationStatusUpdate,
+    ConversationAssignRequest,
+    ConversationTransferRequest,
 )
 from app.services.ai.agent import process_chat
 from app.core.websocket_manager import ws_manager
@@ -26,16 +29,32 @@ router = APIRouter()
 @router.get("", response_model=List[ConversationResponse])
 async def list_conversations(
     status_filter: Optional[str] = None,
+    is_customer: bool = False,
     db: AsyncSession = Depends(get_db)
 ):
-    """List conversations persisted in database with their message streams."""
+    """
+    List conversations with their message streams.
+    Supports Pending, Active, Resolved, and AI filters.
+    Internal notes are stripped if requested by customer.
+    """
     query = select(Conversation).options(selectinload(Conversation.messages)).order_by(Conversation.updated_at.desc())
+
     if status_filter and status_filter != "all":
-        query = query.where(Conversation.status == status_filter)
+        filt = status_filter.lower()
+        if filt in ["pending", "waiting_for_agent"]:
+            query = query.where(Conversation.status.in_(["waiting_for_agent", "open"]))
+        elif filt in ["active", "human_takeover", "agent_handling"]:
+            query = query.where(Conversation.status.in_(["agent_handling", "human_takeover"]))
+        elif filt in ["resolved", "closed"]:
+            query = query.where(Conversation.status.in_(["resolved", "closed"]))
+        elif filt in ["ai_active", "ai_handling"]:
+            query = query.where(Conversation.status.in_(["ai_handling", "AI_ACTIVE"]))
+        else:
+            query = query.where(Conversation.status == status_filter)
 
     result = await db.execute(query)
     conversations = result.scalars().all()
-    
+
     out = []
     for c in conversations:
         msgs = [
@@ -49,6 +68,7 @@ async def list_conversations(
                 created_at=m.created_at,
             )
             for m in c.messages
+            if not (is_customer and m.sender_type == "internal_note")
         ]
         out.append(
             ConversationResponse(
@@ -67,9 +87,33 @@ async def list_conversations(
     return out
 
 
+@router.get("/counts", response_model=Dict[str, int])
+async def get_conversation_counts(db: AsyncSession = Depends(get_db)):
+    """Returns folder counts for Pending, Active, Resolved, and AI Active conversations."""
+    result = await db.execute(select(Conversation))
+    all_convs = result.scalars().all()
+
+    pending = sum(1 for c in all_convs if c.status in ["waiting_for_agent", "open"])
+    active = sum(1 for c in all_convs if c.status in ["agent_handling", "human_takeover"])
+    resolved = sum(1 for c in all_convs if c.status in ["resolved", "closed"])
+    ai_active = sum(1 for c in all_convs if c.status in ["ai_handling", "AI_ACTIVE"])
+
+    return {
+        "pending": pending,
+        "active": active,
+        "resolved": resolved,
+        "ai_active": ai_active,
+        "total": len(all_convs)
+    }
+
+
 @router.get("/{conversation_id}", response_model=ConversationResponse)
-async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_db)):
-    """Fetch single conversation by ID with all persisted messages."""
+async def get_conversation(
+    conversation_id: str,
+    is_customer: bool = False,
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetch single conversation with message stream (hiding internal notes for customer view)."""
     result = await db.execute(
         select(Conversation)
         .options(selectinload(Conversation.messages))
@@ -90,6 +134,7 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
             created_at=m.created_at,
         )
         for m in c.messages
+        if not (is_customer and m.sender_type == "internal_note")
     ]
     return ConversationResponse(
         id=c.id,
@@ -138,7 +183,6 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
     db.add(conv)
     await db.flush()
 
-    # Create welcome message
     welcome = Message(
         id=f"msg-{str(uuid.uuid4())[:8]}",
         conversation_id=cid,
@@ -166,8 +210,7 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
     await db.commit()
     await db.refresh(conv)
 
-    # Reload with messages
-    return await get_conversation(cid, db)
+    return await get_conversation(cid, is_customer=False, db=db)
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
@@ -176,7 +219,12 @@ async def post_message(
     payload: MessageCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Post message into conversation and trigger AI processing if sender is customer."""
+    """
+    Post a new message or private internal note.
+    - If sender is internal_note: saved & visible only to agents, AI is not triggered.
+    - If sender is human_agent: updates conversation to agent_handling, pauses AI.
+    - If sender is customer: AI replies ONLY if conversation is in AI mode.
+    """
     conv_res = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     conv = conv_res.scalar_one_or_none()
     if not conv:
@@ -184,54 +232,98 @@ async def post_message(
 
     now = datetime.now(timezone.utc)
     msg_id = f"msg-{str(uuid.uuid4())[:8]}"
-    
+    is_internal_note = (payload.sender_type == "internal_note")
+
+    sender_name = payload.sender_name
+    if not sender_name:
+        if is_internal_note:
+            sender_name = "🔒 Internal NOC Note"
+        elif payload.sender_type == "customer":
+            sender_name = conv.customer_name or "Subscriber"
+        else:
+            sender_name = "Support Officer"
+
     new_msg = Message(
         id=msg_id,
         conversation_id=conversation_id,
-        sender_type=payload.sender_type,
-        sender_name=payload.sender_name or ("Subscriber" if payload.sender_type == "customer" else "Support Officer"),
+        sender_type="internal_note" if is_internal_note else payload.sender_type,
+        sender_name=sender_name,
         content=payload.content,
         created_at=now,
         updated_at=now,
     )
     db.add(new_msg)
+
+    # Human agent reply automatically marks conversation as human-handled
+    if payload.sender_type in ["human_agent", "support_officer", "agent"]:
+        conv.status = "agent_handling"
+        conv.is_ai_handled = False
+
     conv.updated_at = now
     await db.commit()
     await db.refresh(new_msg)
 
-    # Broadcast customer message via websocket
+    # Broadcast via websocket
     user_msg_dict = {
         "id": new_msg.id,
         "conversation_id": conversation_id,
         "sender_type": new_msg.sender_type,
         "sender_name": new_msg.sender_name,
         "content": new_msg.content,
+        "is_internal": is_internal_note,
         "created_at": new_msg.created_at.isoformat(),
     }
-    await ws_manager.broadcast_to_conversation(conversation_id, {
-        "type": "new_message",
-        "message": user_msg_dict,
-        "event": "new_message",
-        "data": user_msg_dict
-    })
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "new_message",
+            "message": user_msg_dict,
+            "event": "new_message",
+            "data": user_msg_dict
+        },
+        is_internal=is_internal_note
+    )
 
-    # If message is from customer and status is ai_handling, trigger AI agent
-    if payload.sender_type == "customer" and conv.status in ["ai_handling", "open"]:
+    # If message is internal note, do NOT trigger AI
+    if is_internal_note:
+        return MessageResponse(
+            id=new_msg.id,
+            conversation_id=new_msg.conversation_id,
+            sender_type=new_msg.sender_type,
+            sender_name=new_msg.sender_name,
+            content=new_msg.content,
+            tool_calls=None,
+            created_at=new_msg.created_at,
+        )
+
+    # AI triggers ONLY when customer speaks AND conversation is in AI mode
+    can_ai_reply = (
+        payload.sender_type == "customer"
+        and conv.status in ["ai_handling", "AI_ACTIVE", "open"]
+        and conv.is_ai_handled is True
+    )
+
+    if can_ai_reply:
         try:
-            # Fetch recent message history from database
+            # Send AI typing indicator
+            await ws_manager.broadcast_to_conversation(
+                conversation_id,
+                {"type": "typing", "sender_type": "ai_agent", "sender_name": "Circle AI", "is_typing": True}
+            )
+
+            # Fetch recent message history from database (excluding internal notes)
             history_res = await db.execute(
                 select(Message)
                 .where(Message.conversation_id == conversation_id)
                 .order_by(Message.created_at.asc())
             )
             all_msgs = history_res.scalars().all()
-            # Prior history excluding the newly inserted message
             chat_history = [
                 {
                     "role": "user" if m.sender_type == "customer" else "model",
                     "content": m.content
                 }
-                for m in all_msgs if m.id != new_msg.id
+                for m in all_msgs if m.id != new_msg.id and m.sender_type != "internal_note"
             ]
 
             ai_result = await process_chat(
@@ -256,13 +348,29 @@ async def post_message(
             )
             db.add(ai_msg)
 
-            if ai_result.get("should_escalate") or ai_result.get("escalate_to_human"):
-                conv.status = "agent_handling"
+            # Check for AI-to-Human escalation
+            should_escalate = ai_result.get("should_escalate") or ai_result.get("escalate_to_human")
+            if should_escalate:
+                conv.status = "waiting_for_agent"
                 conv.priority = "urgent"
+                conv.is_ai_handled = False
+                meta = dict(conv.metadata_info or {})
+                meta["escalation_context"] = {
+                    "reason": ai_result.get("escalation_reason", "AI detected critical network issue / customer request"),
+                    "attempted_tools": [tc.get("tool_name") for tc in ai_result.get("tool_calls", [])],
+                    "subscriber_id": conv.subscriber_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                conv.metadata_info = meta
 
             await db.commit()
 
-            # Broadcast AI response via websocket
+            # Turn off typing
+            await ws_manager.broadcast_to_conversation(
+                conversation_id,
+                {"type": "typing", "sender_type": "ai_agent", "sender_name": "Circle AI", "is_typing": False}
+            )
+
             ai_msg_dict = {
                 "id": ai_msg.id,
                 "conversation_id": conversation_id,
@@ -278,8 +386,21 @@ async def post_message(
                 "event": "new_message",
                 "data": ai_msg_dict
             })
+
+            if should_escalate:
+                await ws_manager.broadcast_global({
+                    "type": "conversation_escalated",
+                    "conversation_id": conversation_id,
+                    "subscriber_id": conv.subscriber_id,
+                    "reason": ai_result.get("escalation_reason")
+                })
+
         except Exception as e:
             logger.error(f"AI response processing error: {e}")
+            await ws_manager.broadcast_to_conversation(
+                conversation_id,
+                {"type": "typing", "sender_type": "ai_agent", "is_typing": False}
+            )
 
     return MessageResponse(
         id=new_msg.id,
@@ -292,27 +413,209 @@ async def post_message(
     )
 
 
+# =============================================================================
+# Handoff, Assignment & Transfer Endpoints
+# =============================================================================
+
+@router.post("/{conversation_id}/assign", response_model=ConversationResponse)
+async def assign_conversation(
+    conversation_id: str,
+    payload: ConversationAssignRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Assign conversation to support agent, transition to agent_handling mode, and pause AI."""
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    # Fetch agent name
+    agent_res = await db.execute(select(Agent).where(Agent.id == payload.agent_id))
+    agent = agent_res.scalar_one_or_none()
+    agent_name = agent.name if agent else payload.agent_id
+
+    now = datetime.now(timezone.utc)
+    conv.assigned_agent_id = payload.agent_id
+    conv.status = "agent_handling"
+    conv.is_ai_handled = False
+    conv.updated_at = now
+
+    # Record in metadata assignment history
+    meta = dict(conv.metadata_info or {})
+    assignments = list(meta.get("assignment_history", []))
+    assignments.append({
+        "agent_id": payload.agent_id,
+        "agent_name": agent_name,
+        "assigned_at": now.isoformat()
+    })
+    meta["assignment_history"] = assignments
+    conv.metadata_info = meta
+
+    # Add internal note
+    note = Message(
+        id=f"msg-{str(uuid.uuid4())[:8]}",
+        conversation_id=conversation_id,
+        sender_type="internal_note",
+        sender_name="System",
+        content=f"👨‍💼 Conversation assigned to {agent_name}. AI auto-replies paused.",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(note)
+    await db.commit()
+
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "conversation_assigned",
+            "conversation_id": conversation_id,
+            "agent_id": payload.agent_id,
+            "agent_name": agent_name,
+            "status": "agent_handling"
+        }
+    )
+
+    return await get_conversation(conversation_id, is_customer=False, db=db)
+
+
+@router.post("/{conversation_id}/transfer", response_model=ConversationResponse)
+async def transfer_conversation(
+    conversation_id: str,
+    payload: ConversationTransferRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Transfer conversation between agents with transfer reason logging."""
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    # Fetch destination agent name
+    agent_res = await db.execute(select(Agent).where(Agent.id == payload.to_agent_id))
+    dest_agent = agent_res.scalar_one_or_none()
+    dest_agent_name = dest_agent.name if dest_agent else payload.to_agent_id
+
+    old_agent_id = conv.assigned_agent_id
+    now = datetime.now(timezone.utc)
+    conv.assigned_agent_id = payload.to_agent_id
+    conv.status = "agent_handling"
+    conv.is_ai_handled = False
+    conv.updated_at = now
+
+    # Record transfer in history
+    meta = dict(conv.metadata_info or {})
+    transfers = list(meta.get("transfer_history", []))
+    transfers.append({
+        "from_agent_id": old_agent_id,
+        "to_agent_id": payload.to_agent_id,
+        "to_agent_name": dest_agent_name,
+        "reason": payload.reason,
+        "transferred_at": now.isoformat()
+    })
+    meta["transfer_history"] = transfers
+    conv.metadata_info = meta
+
+    # Add internal transfer note
+    note = Message(
+        id=f"msg-{str(uuid.uuid4())[:8]}",
+        conversation_id=conversation_id,
+        sender_type="internal_note",
+        sender_name="System",
+        content=f"🔄 Conversation transferred to {dest_agent_name}. Reason: {payload.reason}",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(note)
+    await db.commit()
+
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "conversation_transferred",
+            "conversation_id": conversation_id,
+            "to_agent_id": payload.to_agent_id,
+            "to_agent_name": dest_agent_name,
+            "reason": payload.reason
+        }
+    )
+
+    return await get_conversation(conversation_id, is_customer=False, db=db)
+
+
+@router.post("/{conversation_id}/handback", response_model=ConversationResponse)
+async def handback_to_ai(conversation_id: str, db: AsyncSession = Depends(get_db)):
+    """Human-to-AI handoff: Return conversation control back to Circle AI."""
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    now = datetime.now(timezone.utc)
+    conv.status = "ai_handling"
+    conv.is_ai_handled = True
+    conv.assigned_agent_id = None
+    conv.updated_at = now
+
+    note = Message(
+        id=f"msg-{str(uuid.uuid4())[:8]}",
+        conversation_id=conversation_id,
+        sender_type="internal_note",
+        sender_name="System",
+        content="🤖 Conversation handed back to Circle AI. Automated responses resumed.",
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(note)
+    await db.commit()
+
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "conversation_handed_back",
+            "conversation_id": conversation_id,
+            "status": "ai_handling"
+        }
+    )
+
+    return await get_conversation(conversation_id, is_customer=False, db=db)
+
+
 @router.patch("/{conversation_id}/status", response_model=ConversationResponse)
 async def update_conversation_status(
     conversation_id: str,
     payload: ConversationStatusUpdate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Update conversation triage status or assign to support officer."""
+    """Update conversation triage status (e.g. resolve, close, escalate)."""
     result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     conv = result.scalar_one_or_none()
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    now = datetime.now(timezone.utc)
     if payload.status:
         conv.status = payload.status
-        if payload.status == "agent_handling":
+        if payload.status in ["agent_handling", "human_takeover"]:
             conv.is_ai_handled = False
+        elif payload.status in ["ai_handling", "AI_ACTIVE"]:
+            conv.is_ai_handled = True
+
     if payload.priority:
         conv.priority = payload.priority
     if payload.assigned_agent_id:
         conv.assigned_agent_id = payload.assigned_agent_id
 
-    conv.updated_at = datetime.now(timezone.utc)
+    conv.updated_at = now
     await db.commit()
-    return await get_conversation(conversation_id, db)
+
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "status_changed",
+            "conversation_id": conversation_id,
+            "status": conv.status,
+            "priority": conv.priority
+        }
+    )
+
+    return await get_conversation(conversation_id, is_customer=False, db=db)

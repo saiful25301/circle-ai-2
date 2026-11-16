@@ -159,10 +159,56 @@ class ApiClient {
     return res.json();
   }
 
+  async getConversationCounts(): Promise<{ pending: number; active: number; resolved: number; ai_active: number }> {
+    const res = await fetch(`${API_BASE}/conversations/counts`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch conversation counts');
+    return res.json();
+  }
+
+  async assignConversation(conversationId: string, agentId: string): Promise<Conversation> {
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}/assign`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to assign conversation');
+    }
+    return res.json();
+  }
+
+  async transferConversation(conversationId: string, toAgentId: string, reason: string): Promise<Conversation> {
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}/transfer`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ to_agent_id: toAgentId, reason }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to transfer conversation');
+    }
+    return res.json();
+  }
+
+  async handbackToAI(conversationId: string): Promise<Conversation> {
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}/handback`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to hand back conversation to AI');
+    }
+    return res.json();
+  }
+
   async sendMessage(
     conversationId: string,
     content: string,
-    senderType: 'customer' | 'human_agent' | 'ai_agent' | 'system' = 'customer',
+    senderType: 'customer' | 'human_agent' | 'ai_agent' | 'system' | 'internal_note' = 'customer',
     senderName?: string
   ): Promise<Message> {
     const res = await fetch(`${API_BASE}/conversations/${conversationId}/messages`, {
@@ -339,6 +385,16 @@ class ApiClient {
       headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch agents');
+    return res.json();
+  }
+
+  async updateAgentStatus(agentId: string, status: 'online' | 'busy' | 'offline'): Promise<any> {
+    const res = await fetch(`${API_BASE}/agents/${agentId}/status`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error('Failed to update agent status');
     return res.json();
   }
 

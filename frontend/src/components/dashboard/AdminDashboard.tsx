@@ -113,7 +113,7 @@ export const AdminDashboard: React.FC = () => {
       await api.sendMessage(
         convId,
         text,
-        'human_agent',
+        isInternalNote ? 'internal_note' : 'human_agent',
         isInternalNote ? 'Internal NOC Note 🔒' : currentUser?.full_name || 'Support Officer'
       );
       // Reload fresh conversation stream from DB
@@ -126,7 +126,7 @@ export const AdminDashboard: React.FC = () => {
             const newMsg = {
               id: `msg-${Date.now()}`,
               conversation_id: convId,
-              sender_type: isInternalNote ? ('system' as const) : ('human_agent' as const),
+              sender_type: isInternalNote ? ('internal_note' as const) : ('human_agent' as const),
               sender_name: isInternalNote ? 'Internal NOC Note 🔒' : currentUser?.full_name || 'Support Desk',
               content: text,
               created_at: new Date().toISOString(),

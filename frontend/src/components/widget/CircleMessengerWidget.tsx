@@ -27,10 +27,12 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isAgentTyping, setIsAgentTyping] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const typingTimeoutRef = useRef<any>(null);
 
   // Initialize or fetch conversation for active subscriber
   const loadConversation = async () => {
@@ -40,7 +42,12 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
       // Match active subscriber or take first
       const found = convs.find(c => c.customer_id === activeSubscriberId) || convs[0];
       if (found) {
-        setConversation(found);
+        // Strip out any internal notes for customer view
+        const sanitized = {
+          ...found,
+          messages: found.messages.filter(m => m.sender_type !== 'internal_note')
+        };
+        setConversation(sanitized);
       } else {
         const created = await api.createConversation(activeSubscriberId);
         setConversation(created);
@@ -81,45 +88,80 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
   useEffect(() => {
     if (!conversation?.id || conversation.id.startsWith('mock-')) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/chat/${conversation.id}`;
+    let isSubscribed = true;
+    let reconnectTimer: any = null;
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    const connectWs = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/chat/${conversation.id}?client_type=customer`;
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'new_message' && data.message) {
-            setConversation(prev => {
-              if (!prev) return null;
-              // Avoid duplicates
-              if (prev.messages.some(m => m.id === data.message.id)) return prev;
-              const updated = { ...prev, messages: [...prev.messages, data.message] };
-              onMessageReceived?.(data.message);
-              return updated;
-            });
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-            if (!isOpen && data.message.sender_type !== 'customer') {
-              setUnreadCount(prev => prev + 1);
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // Handle live typing indicator from AI or Human Agent
+            if (data.type === 'typing') {
+              if (data.sender_type !== 'customer') {
+                setIsAgentTyping(data.is_typing);
+                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                if (data.is_typing) {
+                  typingTimeoutRef.current = setTimeout(() => {
+                    setIsAgentTyping(false);
+                  }, 3500);
+                }
+              }
+              return;
             }
+
+            if (data.type === 'new_message' && data.message) {
+              // Never render internal notes in customer messenger
+              if (data.message.sender_type === 'internal_note') return;
+
+              setIsAgentTyping(false);
+              setConversation(prev => {
+                if (!prev) return null;
+                // Avoid duplicates
+                if (prev.messages.some(m => m.id === data.message.id)) return prev;
+                const updated = { ...prev, messages: [...prev.messages, data.message] };
+                onMessageReceived?.(data.message);
+                return updated;
+              });
+
+              if (!isOpen && data.message.sender_type !== 'customer') {
+                setUnreadCount(prev => prev + 1);
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing WS message:', e);
           }
-        } catch (e) {
-          console.error('Error parsing WS message:', e);
-        }
-      };
+        };
 
-      ws.onerror = () => {
-        // Silently fallback to REST polling/manual fetch
-      };
+        ws.onclose = () => {
+          if (isSubscribed) {
+            reconnectTimer = setTimeout(connectWs, 3000);
+          }
+        };
 
-      return () => {
-        ws.close();
-      };
-    } catch {
-      // WS fallback
-    }
+        ws.onerror = () => {
+          // Silently wait for onclose to reconnect
+        };
+      } catch {
+        // WS fallback
+      }
+    };
+
+    connectWs();
+
+    return () => {
+      isSubscribed = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (wsRef.current) wsRef.current.close();
+    };
   }, [conversation?.id, isOpen]);
 
   // Handle user sending message
@@ -275,6 +317,7 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
                   language={language}
                   conversation={conversation}
                   loading={loading}
+                  isAgentTyping={isAgentTyping}
                   error={error}
                   onRetry={() => loadConversation()}
                   onRequestHumanSupport={handleRequestHumanSupport}

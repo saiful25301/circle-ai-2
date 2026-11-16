@@ -8,6 +8,7 @@ from app.core.database import engine, Base
 from app.core.exceptions import register_exception_handlers
 from app.core.seeder import seed_database
 from app.api.router import api_router
+from app.api.v1 import websocket
 # Import all 12 models to ensure they register on Base.metadata
 from app.models import (
     User,
@@ -68,8 +69,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount API v1 router
+# Mount API v1 router and direct websocket routes
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(websocket.router)
+
 
 
 @app.get("/")

@@ -34,6 +34,15 @@ class ConversationStatusUpdate(BaseModel):
     assigned_agent_id: Optional[str] = None
 
 
+class ConversationAssignRequest(BaseModel):
+    agent_id: str
+
+
+class ConversationTransferRequest(BaseModel):
+    to_agent_id: str
+    reason: str
+
+
 class ConversationResponse(BaseModel):
     id: str
     customer_id: Optional[str] = None

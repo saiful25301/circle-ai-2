@@ -18,6 +18,7 @@ interface WidgetChatViewProps {
   language: Language;
   conversation: Conversation | null;
   loading: boolean;
+  isAgentTyping?: boolean;
   error: string | null;
   onRetry: () => void;
   onRequestHumanSupport: () => void;
@@ -28,6 +29,7 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
   language,
   conversation,
   loading,
+  isAgentTyping = false,
   error,
   onRetry,
   onRequestHumanSupport,
@@ -105,7 +107,9 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
 
       {/* Messages Stream - Clean and minimal light theme */}
       <div className="flex-1 p-4 overflow-y-auto widget-scroll space-y-3.5">
-        {conversation?.messages?.map((msg) => {
+        {conversation?.messages
+          ?.filter((msg) => msg.sender_type !== 'internal_note')
+          ?.map((msg) => {
           const isCustomer = msg.sender_type === 'customer';
           const isHumanAgent = msg.sender_type === 'human_agent';
 
@@ -223,10 +227,16 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
         })}
 
         {/* Typing Indicator */}
-        {loading && (
+        {(loading || isAgentTyping) && (
           <div className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-2xl rounded-bl-none w-fit text-xs shadow-xs animate-fadeIn">
-            <Bot className="w-4 h-4 text-amber-600 animate-spin" />
-            <span className="text-[11px] font-semibold">{t.typingText}</span>
+            {isHumanHandling ? (
+              <UserCheck className="w-4 h-4 text-blue-600 animate-pulse" />
+            ) : (
+              <Bot className="w-4 h-4 text-amber-600 animate-spin" />
+            )}
+            <span className="text-[11px] font-semibold">
+              {isHumanHandling ? 'Support Agent is typing...' : t.typingText}
+            </span>
             <div className="flex gap-1 items-center ml-1">
               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce"></span>
               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:0.15s]"></span>
