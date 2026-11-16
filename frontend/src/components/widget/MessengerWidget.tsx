@@ -6,10 +6,11 @@ import {
   Sparkles,
   Wifi,
   CreditCard,
-  RefreshCw,
   Zap,
-  AlertTriangle,
-  User
+  User,
+  MapPin,
+  Building2,
+  PhoneCall,
 } from 'lucide-react';
 import { Message, Conversation } from '../../types';
 import { api } from '../../services/api';
@@ -94,11 +95,12 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
   };
 
   const quickActions = [
-    { label: 'Check Fiber Signal', query: `Diagnose optical power for ${activeSubscriber}`, icon: Wifi },
-    { label: 'Check Bill & bKash', query: `Check my billing statement and bKash pay code for ${activeSubscriber}`, icon: CreditCard },
-    { label: 'Reboot ONU Port', query: `Soft reboot port for ${activeSubscriber}`, icon: RefreshCw },
-    { label: 'Internet Plans', query: 'What are Circle Network internet plans and packages?', icon: Zap },
-    { label: 'Red LOS Light Help', query: 'Red LOS light is blinking on my ONU', icon: AlertTriangle },
+    { label: 'Home Internet Packages', query: 'What are Circle Network home internet packages, speeds, and monthly pricing?', icon: Zap },
+    { label: 'New Connection Request', query: 'I want to apply for a new Circle Network optical fiber internet connection', icon: Wifi },
+    { label: 'Coverage Area Check', query: 'Is Circle Network fiber broadband available in my area?', icon: MapPin },
+    { label: 'Bill Payment (bKash/Nagad)', query: `Check billing statement and bKash pay code for ${activeSubscriber}`, icon: CreditCard },
+    { label: 'Corporate Internet', query: 'Tell me about Circle Network corporate leased line and enterprise solutions', icon: Building2 },
+    { label: 'Career & 24/7 Support', query: 'Contact Circle Network 24/7 helpline 09611800800 or view careers', icon: PhoneCall },
   ];
 
   const widgetContent = (

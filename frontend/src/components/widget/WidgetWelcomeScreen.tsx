@@ -20,6 +20,17 @@ interface WidgetWelcomeScreenProps {
   activeSubscriberId: string;
 }
 
+const stripMarkdown = (text?: string): string => {
+  if (!text) return '';
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1') // Strip bold **text**
+    .replace(/\*(.*?)\*/g, '$1')     // Strip italic *text*
+    .replace(/#{1,6}\s+/g, '')       // Strip markdown headers
+    .replace(/`([^`]+)`/g, '$1')     // Strip backtick code
+    .replace(/\*\*/g, '')            // Any leftover asterisks
+    .trim();
+};
+
 export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
   language,
   onStartChat,
@@ -35,7 +46,8 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
   const filteredQuestions = t.quickQuestions.filter(
     (q) =>
       q.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.query.toLowerCase().includes(searchQuery.toLowerCase())
+      q.query.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (q.sublabel && q.sublabel.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -113,10 +125,12 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
           <button
             type="button"
             onClick={() => onStartChat()}
-            className="w-full text-left text-xs text-slate-700 hover:text-slate-900 line-clamp-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 font-medium"
+            className="w-full text-left text-xs text-slate-700 hover:text-slate-900 line-clamp-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 font-medium leading-relaxed"
           >
-            {recentConversation.messages[recentConversation.messages.length - 1]?.content ||
-              'Resume your chat'}
+            {stripMarkdown(
+              recentConversation.messages[recentConversation.messages.length - 1]?.content ||
+              'Resume your chat'
+            )}
           </button>
         </div>
       )}
@@ -133,7 +147,7 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
         />
       </div>
 
-      {/* Suggested Questions Grid */}
+      {/* Suggested Questions Grid (Circle Network Official Website Navigation & Customer Journeys) */}
       <div className="space-y-2">
         <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
           {t.suggestedQuestions}
@@ -144,12 +158,19 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
               key={item.id}
               type="button"
               onClick={() => onStartChat(item.query)}
-              className="text-left p-3 rounded-xl bg-white hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 text-xs text-slate-800 transition-all flex items-center justify-between group shadow-2xs"
+              className="text-left p-3 rounded-xl bg-white hover:bg-amber-50/70 border border-slate-200 hover:border-amber-300 text-xs text-slate-800 transition-all flex items-center justify-between group shadow-2xs hover:shadow-xs active:scale-[0.99]"
             >
-              <span className="font-semibold group-hover:text-amber-800 transition-colors">
-                {item.label}
-              </span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
+              <div className="flex-1 pr-2">
+                <span className="font-semibold text-slate-900 group-hover:text-amber-800 transition-colors block">
+                  {item.label}
+                </span>
+                {item.sublabel && (
+                  <span className="text-[11px] text-slate-500 group-hover:text-slate-600 block mt-0.5 font-normal leading-relaxed">
+                    {item.sublabel}
+                  </span>
+                )}
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0" />
             </button>
           ))}
         </div>
