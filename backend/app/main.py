@@ -38,6 +38,14 @@ async def lifespan(app: FastAPI):
     # Ensure database schema is created and initial data is seeded
     try:
         async with engine.begin() as conn:
+            # On PostgreSQL, enable pgvector extension if not already present
+            if conn.dialect.name == "postgresql":
+                try:
+                    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                    logger.info("PostgreSQL pgvector extension verified/enabled.")
+                except Exception as ext_err:
+                    logger.warning(f"pgvector extension check note: {ext_err}")
+
             await conn.run_sync(Base.metadata.create_all)
             try:
                 await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN embedding JSON"))
@@ -144,13 +152,15 @@ register_exception_handlers(app)
 app.add_middleware(RateLimitMiddleware)
 
 # Configure CORS
-origins = settings.BACKEND_CORS_ORIGINS
-if not origins or "*" in origins:
-    origins = ["*"]
+origins = [o for o in settings.cors_origins_list if o != "*"]
+allow_origin_regex = r"https://.*\.onrender\.com"
+if "*" in settings.cors_origins_list:
+    allow_origin_regex = r".*"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins != ["*"] else ["*"],
+    allow_origins=origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

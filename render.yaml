@@ -1,0 +1,56 @@
+# ==============================================================================
+# Render.com Blueprint Specification for Circle AI
+# Platform: Circle Network Bangladesh AI Customer Support Platform
+# ==============================================================================
+
+services:
+  # ─── FastAPI Python Backend Service ─────────────────────────────────────────
+  - type: web
+    name: circle-ai-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: circle-ai-postgres
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: "https://circle-ai-frontend.onrender.com,http://localhost:5173,http://localhost:3000"
+
+  # ─── React Frontend Static Site ─────────────────────────────────────────────
+  - type: web
+    name: circle-ai-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: circle-ai-backend
+          property: host
+      - key: VITE_ISP_NAME
+        value: "Circle Network"
+
+# ─── Managed PostgreSQL Database with pgvector ────────────────────────────────
+databases:
+  - name: circle-ai-postgres
+    databaseName: circle_ai
+    user: circle_admin
+    plan: free

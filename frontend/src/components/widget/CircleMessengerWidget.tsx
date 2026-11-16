@@ -9,7 +9,7 @@ import { WidgetHelpView } from './WidgetHelpView';
 import { WidgetProps, WidgetView, MOCK_TEST_SUBSCRIBERS } from './types';
 import { Language } from './localization/translations';
 import { Conversation, Message } from '../../types';
-import { api } from '../../services/api';
+import { api, getWebSocketUrl } from '../../services/api';
 
 export const CircleMessengerWidget: React.FC<WidgetProps> = ({
   embedded = false,
@@ -98,8 +98,7 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
     let reconnectTimer: any = null;
 
     const connectWs = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/v1/ws/chat/${conversation.id}?client_type=customer`;
+      const wsUrl = getWebSocketUrl(`/api/v1/ws/chat/${conversation.id}?client_type=customer`);
 
       try {
         const ws = new WebSocket(wsUrl);

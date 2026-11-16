@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     @property
     def async_database_url(self) -> str:
         if self.DATABASE_URL:
-            return self.DATABASE_URL
+            url = self.DATABASE_URL
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     @property
@@ -43,9 +48,13 @@ class Settings(BaseSettings):
         if self.DATABASE_URL:
             # Convert async driver to sync driver for alembic/psycopg2
             url = self.DATABASE_URL
-            if "postgresql+asyncpg" in url:
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+            elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+                url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            elif "postgresql+asyncpg" in url:
                 return url.replace("postgresql+asyncpg", "postgresql+psycopg2")
-            if "sqlite+aiosqlite" in url:
+            elif "sqlite+aiosqlite" in url:
                 return url.replace("sqlite+aiosqlite", "sqlite")
             return url
         return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
@@ -63,17 +72,39 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:3000",
     ]
+    CORS_ORIGINS: Optional[Union[List[str], str]] = None
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",")]
+            return [i.strip() for i in v.split(",") if i.strip()]
         elif isinstance(v, str) and v.startswith("["):
             return json.loads(v)
         elif isinstance(v, list):
             return v
         return []
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        raw = self.CORS_ORIGINS or self.BACKEND_CORS_ORIGINS
+        origins: List[str] = []
+        if isinstance(raw, str):
+            if raw.startswith("["):
+                try:
+                    origins = json.loads(raw)
+                except Exception:
+                    origins = [i.strip() for i in raw.split(",") if i.strip()]
+            else:
+                origins = [i.strip() for i in raw.split(",") if i.strip()]
+        elif isinstance(raw, list):
+            origins = list(raw)
+
+        # Include standard local development origins
+        for default_origin in ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]:
+            if default_origin not in origins:
+                origins.append(default_origin)
+        return origins
 
     # ISP Meta
     ISP_NAME: str = "Circle Network"

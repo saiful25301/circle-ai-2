@@ -9,6 +9,39 @@ import {
 const rawApiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1';
 const API_BASE = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api/v1`;
 
+/**
+ * Resolves the WebSocket URL for live chat connections.
+ * 1. Uses VITE_WS_URL if explicitly set.
+ * 2. If VITE_API_URL is an absolute HTTP/HTTPS URL, automatically derives ws:// or wss:// from it.
+ * 3. Otherwise falls back to window.location host (local dev or reverse proxy).
+ */
+export function getWebSocketUrl(path: string): string {
+  const envWs = (import.meta as any).env?.VITE_WS_URL;
+  if (envWs) {
+    const cleanWs = envWs.replace(/\/+$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${cleanWs}${cleanPath}`;
+  }
+
+  // Derive from VITE_API_URL if it is an absolute URL
+  const rawApi = (import.meta as any).env?.VITE_API_URL;
+  if (rawApi && (rawApi.startsWith('http://') || rawApi.startsWith('https://'))) {
+    const wsProto = rawApi.startsWith('https://') ? 'wss:' : 'ws:';
+    const hostAndBase = rawApi.replace(/^https?:\/\//, '').replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${wsProto}//${hostAndBase}${cleanPath}`;
+  }
+
+  // Fallback to window.location in browser environments
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${protocol}//${window.location.host}${cleanPath}`;
+  }
+
+  return path;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
