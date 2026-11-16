@@ -1,0 +1,68 @@
+version: "3.9"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Circle AI Backend (FastAPI + Gemini Agent + WebSockets)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: circle_ai_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://circleai:circleai_secret@postgres:5432/circleai_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - circle_network
+
+  # ---------------------------------------------------------------------------
+  # Circle AI Frontend (React + TypeScript + Tailwind CSS)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: circle_ai_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - circle_network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 + pgvector for RAG Knowledge Embeddings
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: circle_ai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: circleai_db
+      POSTGRES_USER: circleai
+      POSTGRES_PASSWORD: circleai_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - circle_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U circleai -d circleai_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:
+
+networks:
+  circle_network:
+    driver: bridge

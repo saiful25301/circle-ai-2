@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circle AI — Admin Dashboard</title>
+  <link rel="stylesheet" href="/static/css/admin.css" />
+</head>
+<body class="app-body">
+
+  <!-- ═══════════════════════════════════════════════════════════
+       LOGIN MODAL
+       Shown when the user is not authenticated.
+  ════════════════════════════════════════════════════════════ -->
+  <div id="loginModal" class="modal-overlay" role="dialog" aria-modal="true" aria-label="Login">
+    <div class="modal-card login-card">
+      <div class="login-logo">🤖</div>
+      <h2 class="login-title">Circle AI Admin</h2>
+      <p class="login-subtitle">Sign in to your dashboard</p>
+      <form id="loginForm" class="login-form" novalidate>
+        <div class="form-group">
+          <label for="loginEmail">Email</label>
+          <input
+            type="email"
+            id="loginEmail"
+            name="email"
+            placeholder="admin@example.com"
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input
+            type="password"
+            id="loginPassword"
+            name="password"
+            placeholder="••••••••"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <div id="loginError" class="form-error hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MAIN APP SHELL (hidden until authenticated)
+  ════════════════════════════════════════════════════════════ -->
+  <div id="appShell" class="app-shell hidden">
+
+    <!-- ── SIDEBAR ─────────────────────────────────────────── -->
+    <aside id="sidebar" class="sidebar" aria-label="Main navigation">
+      <div class="sidebar-logo">
+        <span class="sidebar-logo-icon">🤖</span>
+        <span class="sidebar-logo-text">Circle AI</span>
+      </div>
+
+      <nav class="sidebar-nav" role="navigation">
+        <ul class="nav-list">
+          <li class="nav-item">
+            <a href="#" class="nav-link active" data-page="overview">
+              <span class="nav-icon">🏠</span>
+              <span class="nav-label">Overview</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-page="conversations">
+              <span class="nav-icon">💬</span>
+              <span class="nav-label">Conversations</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-page="leads">
+              <span class="nav-icon">🎯</span>
+              <span class="nav-label">Leads</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-page="handoffs">
+              <span class="nav-icon">👨‍💼</span>
+              <span class="nav-label">Handoffs</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-page="knowledge">
+              <span class="nav-icon">📚</span>
+              <span class="nav-label">Knowledge Base</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="#" class="nav-link" data-page="settings">
+              <span class="nav-icon">⚙️</span>
+              <span class="nav-label">Settings</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-version">v1.0.0</div>
+      </div>
+    </aside>
+
+    <!-- ── MAIN WRAPPER ────────────────────────────────────── -->
+    <div class="main-wrapper">
+
+      <!-- ── TOP NAVBAR ──────────────────────────────────── -->
+      <header class="topbar" role="banner">
+        <div class="topbar-left">
+          <!-- hamburger for mobile -->
+          <button class="hamburger" id="hamburgerBtn" aria-label="Toggle sidebar" aria-expanded="false">
+            <span></span><span></span><span></span>
+          </button>
+          <h1 class="topbar-title" id="pageTitle">Overview</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="topbar-user">
+            <span class="user-avatar" aria-hidden="true">👤</span>
+            <span class="user-name" id="topbarUsername">Admin</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="logoutBtn">Logout</button>
+        </div>
+      </header>
+
+      <!-- ── CONTENT AREA ───────────────────────────────── -->
+      <main class="content" role="main">
+
+        <!-- ── GLOBAL LOADING OVERLAY ──────────────────── -->
+        <div id="loadingOverlay" class="loading-overlay hidden" aria-live="polite" aria-label="Loading">
+          <div class="spinner"></div>
+        </div>
+
+        <!-- PAGE: OVERVIEW ─────────────────────────────── -->
+        <section id="page-overview" class="page active" data-page="overview">
+
+          <!-- Stat Cards -->
+          <div class="stats-grid" role="list">
+            <article class="stat-card" role="listitem">
+              <div class="stat-icon stat-icon--blue">💬</div>
+              <div class="stat-body">
+                <div class="stat-value" id="statActiveConversations">—</div>
+                <div class="stat-label">Active Conversations</div>
+              </div>
+            </article>
+            <article class="stat-card" role="listitem">
+              <div class="stat-icon stat-icon--green">🎯</div>
+              <div class="stat-body">
+                <div class="stat-value" id="statTodayLeads">—</div>
+                <div class="stat-label">Today's Leads</div>
+              </div>
+            </article>
+            <article class="stat-card" role="listitem">
+              <div class="stat-icon stat-icon--amber">👨‍💼</div>
+              <div class="stat-body">
+                <div class="stat-value" id="statPendingHandoffs">—</div>
+                <div class="stat-label">Pending Handoffs</div>
+              </div>
+            </article>
+            <article class="stat-card" role="listitem">
+              <div class="stat-icon stat-icon--red">🎫</div>
+              <div class="stat-body">
+                <div class="stat-value" id="statOpenTickets">—</div>
+                <div class="stat-label">Open Tickets</div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Recent Conversations + Recent Leads -->
+          <div class="two-col-grid">
+
+            <!-- Recent Conversations Table -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Recent Conversations</h2>
+                <a href="#" class="card-link" data-page="conversations">View all</a>
+              </div>
+              <div class="table-wrapper">
+                <table class="data-table" id="overviewConversationsTable">
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Customer</th>
+                      <th>Status</th>
+                      <th>Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overviewConversationsTbody">
+                    <tr><td colspan="4" class="empty-row">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Recent Leads Table -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Recent Leads</h2>
+                <a href="#" class="card-link" data-page="leads">View all</a>
+              </div>
+              <div class="table-wrapper">
+                <table class="data-table" id="overviewLeadsTable">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Service</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody id="overviewLeadsTbody">
+                    <tr><td colspan="4" class="empty-row">Loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- PAGE: CONVERSATIONS ─────────────────────────── -->
+        <section id="page-conversations" class="page" data-page="conversations">
+          <!-- Rendered by conversations.js -->
+          <div id="conversationsRoot"></div>
+        </section>
+
+        <!-- PAGE: LEADS ─────────────────────────────────── -->
+        <section id="page-leads" class="page" data-page="leads">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Leads</h2>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table" id="leadsTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Contact</th>
+                    <th>Service Interest</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="leadsTbody">
+                  <tr><td colspan="7" class="empty-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pagination" id="leadsPagination"></div>
+          </div>
+        </section>
+
+        <!-- PAGE: HANDOFFS ───────────────────────────────── -->
+        <section id="page-handoffs" class="page" data-page="handoffs">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Handoff Queue</h2>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table" id="handoffsTable">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Reason</th>
+                    <th>Channel</th>
+                    <th>Waiting Since</th>
+                    <th>Assigned To</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="handoffsTbody">
+                  <tr><td colspan="7" class="empty-row">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PAGE: KNOWLEDGE BASE ─────────────────────────── -->
+        <section id="page-knowledge" class="page" data-page="knowledge">
+          <!-- Rendered by knowledge.js -->
+          <div id="knowledgeRoot"></div>
+        </section>
+
+        <!-- PAGE: SETTINGS ───────────────────────────────── -->
+        <section id="page-settings" class="page" data-page="settings">
+          <div class="card settings-card">
+            <div class="card-header">
+              <h2 class="card-title">System Settings</h2>
+            </div>
+            <div id="settingsRoot" class="settings-body">
+              <p class="text-muted">Loading settings…</p>
+            </div>
+          </div>
+        </section>
+
+      </main><!-- /content -->
+    </div><!-- /main-wrapper -->
+  </div><!-- /appShell -->
+
+  <!-- ═══════════════════════════════════════════════════════════
+       TOAST CONTAINER
+  ════════════════════════════════════════════════════════════ -->
+  <div id="toastContainer" class="toast-container" role="region" aria-live="polite" aria-label="Notifications"></div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       SCRIPTS
+  ════════════════════════════════════════════════════════════ -->
+  <script src="/static/js/conversations.js"></script>
+  <script src="/static/js/knowledge.js"></script>
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

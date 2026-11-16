@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circle Network Self-Care Portal — Embedded Widget Demo</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background: #111;
+      color: #eee;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .portal-card {
+      background: #1e1e1e;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 600px;
+    }
+    .badge {
+      background: #FDBC1F;
+      color: #111;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="/circle_network_logo.webp" alt="Circle Network" style="height: 40px;" />
+    <h2>Subscriber Self-Care Portal</h2>
+  </div>
+
+  <div class="portal-card">
+    <span class="badge">ACTIVE CONNECTION</span>
+    <h3>Welcome back, Rashedul Hasan</h3>
+    <p>Subscriber ID: <strong>CN-88214</strong></p>
+    <p>Plan: <strong>Circle Fast 30 Mbps</strong> (৳800/month)</p>
+    <p>Status: <span style="color: #4ade80;">Online (Optical Power: -19.4 dBm)</span></p>
+    <hr style="border-color: #333; margin: 20px 0;" />
+    <p style="color: #aaa; font-size: 13px;">
+      The Circle AI Messenger Widget is running in the bottom-right corner. Click the yellow chat bubble to test the Intercom-style support experience!
+    </p>
+  </div>
+
+  <!-- Circle AI Widget Script Embed -->
+  <script type="module" src="/src/embed.tsx"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.CircleAIWidget) {
+        window.CircleAIWidget.init({
+          subscriberId: 'CN-88214',
+          defaultOpen: false,
+          initialLanguage: 'en'
+        });
+      }
+    });
+  </script>
+</body>
+</html>
