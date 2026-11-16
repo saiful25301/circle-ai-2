@@ -7,14 +7,20 @@ import {
   AlertTriangle,
   UserCheck,
   CheckCircle2,
+  LogOut,
+  Shield,
+  Headphones,
 } from 'lucide-react';
 import { DashboardSection } from './types';
+import { AuthUser } from '../../services/api';
 
 interface DashboardTopNavProps {
   activeSection: DashboardSection;
   onOpenNewTicketModal: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  currentUser?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 export const DashboardTopNav: React.FC<DashboardTopNavProps> = ({
@@ -22,6 +28,8 @@ export const DashboardTopNav: React.FC<DashboardTopNavProps> = ({
   onOpenNewTicketModal,
   searchQuery,
   onSearchChange,
+  currentUser,
+  onLogout,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -194,6 +202,49 @@ export const DashboardTopNav: React.FC<DashboardTopNavProps> = ({
             </div>
           )}
         </div>
+
+        {/* User Profile & Sign Out */}
+        {currentUser && (
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                {currentUser.role === 'admin' ? (
+                  <Shield className="w-4 h-4" />
+                ) : (
+                  <Headphones className="w-4 h-4" />
+                )}
+              </div>
+              <div className="hidden lg:block text-left">
+                <div className="text-xs font-bold text-slate-900 leading-tight">
+                  {currentUser.full_name}
+                </div>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
+                      currentUser.role === 'admin'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : 'bg-blue-100 text-blue-800 border border-blue-300'
+                    }`}
+                  >
+                    {currentUser.role === 'admin' ? 'NOC Admin' : 'Support Agent'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+                title="Sign Out"
+                aria-label="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

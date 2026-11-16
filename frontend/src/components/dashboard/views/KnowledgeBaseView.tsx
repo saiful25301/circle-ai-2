@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Zap,
@@ -9,14 +9,43 @@ import {
 } from 'lucide-react';
 import { KBArticleItem } from '../types';
 import { MOCK_KB_ARTICLES } from '../mockData';
+import { api } from '../../../services/api';
 
 export const KnowledgeBaseView: React.FC = () => {
-  const [articles] = useState<KBArticleItem[]>(MOCK_KB_ARTICLES);
+  const [articles, setArticles] = useState<KBArticleItem[]>([]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedArticle, setSelectedArticle] = useState<KBArticleItem | null>(null);
 
   const categories = ['all', 'troubleshooting', 'router_setup', 'billing', 'bdix', 'packages'];
+
+  useEffect(() => {
+    async function fetchArticles() {
+      try {
+        const live = await api.getKnowledgeBase(activeCategory, search);
+        if (live && live.length > 0) {
+          const formatted: KBArticleItem[] = live.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            slug: a.slug || a.id,
+            category: a.category as any,
+            views: a.views || 350,
+            citationsByAI: a.citationsByAI || a.citations_count || 120,
+            lastUpdated: a.lastUpdated || 'Nov 16, 2026',
+            author: a.author || 'NOC Technical Team',
+            summary: a.summary || a.content.slice(0, 150) + '...',
+            content: a.content,
+          }));
+          setArticles(formatted);
+        } else {
+          setArticles(MOCK_KB_ARTICLES);
+        }
+      } catch {
+        setArticles(MOCK_KB_ARTICLES);
+      }
+    }
+    fetchArticles();
+  }, [activeCategory]);
 
   const filtered = articles.filter((a) => {
     if (activeCategory !== 'all' && a.category !== activeCategory) return false;

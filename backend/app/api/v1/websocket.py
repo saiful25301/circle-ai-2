@@ -3,9 +3,11 @@ import logging
 from datetime import datetime, timezone
 import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+from app.core.database import AsyncSessionLocal
 from app.core.websocket_manager import ws_manager
+from app.models.conversation import Conversation, Message
 from app.services.ai.agent import process_chat
-from app.api.v1.conversations import STORED_CONVERSATIONS, STORED_MESSAGES
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +32,27 @@ async def websocket_chat_endpoint(websocket: WebSocket, conversation_id: str):
                 continue
 
             msg_id = f"msg-{str(uuid.uuid4())[:8]}"
+            now = datetime.now(timezone.utc)
+
+            # Persist incoming message to database
+            async with AsyncSessionLocal() as db:
+                db_msg = Message(
+                    id=msg_id,
+                    conversation_id=conversation_id,
+                    sender_type=sender_type,
+                    sender_name=sender_name,
+                    content=content,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(db_msg)
+
+                conv_res = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+                conv = conv_res.scalar_one_or_none()
+                if conv:
+                    conv.updated_at = now
+                await db.commit()
+
             user_msg = {
                 "id": msg_id,
                 "conversation_id": conversation_id,
@@ -37,47 +60,60 @@ async def websocket_chat_endpoint(websocket: WebSocket, conversation_id: str):
                 "sender_name": sender_name,
                 "content": content,
                 "tool_calls": None,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now.isoformat(),
             }
 
-            if conversation_id in STORED_MESSAGES:
-                STORED_MESSAGES[conversation_id].append(user_msg)
-
-            # Broadcast incoming message to all listeners (customer widget & support agent)
+            # Broadcast incoming message to listeners
             await ws_manager.broadcast_to_conversation(conversation_id, {
                 "type": "new_message",
                 "message": user_msg
             })
 
-            conv = STORED_CONVERSATIONS.get(conversation_id)
-            if conv and conv.get("status") == "ai_handling" and sender_type == "customer":
-                ai_result = await process_chat(conversation_id, content, conv.get("customer_id"))
-                ai_msg = {
-                    "id": f"msg-{str(uuid.uuid4())[:8]}",
-                    "conversation_id": conversation_id,
-                    "sender_type": "ai_agent",
-                    "sender_name": "Circle AI",
-                    "content": ai_result["reply"],
-                    "tool_calls": ai_result["tool_calls"],
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }
-                if conversation_id in STORED_MESSAGES:
-                    STORED_MESSAGES[conversation_id].append(ai_msg)
+            # Check if AI should answer
+            async with AsyncSessionLocal() as db:
+                conv_res = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+                conv = conv_res.scalar_one_or_none()
+                if conv and conv.status in ["ai_handling", "open"] and sender_type == "customer":
+                    try:
+                        ai_res = await process_chat(
+                            user_message=content,
+                            customer_id=conv.subscriber_id,
+                            conversation_history=[{"role": "user", "content": content}]
+                        )
 
-                if ai_result.get("should_escalate"):
-                    conv["status"] = "agent_handling"
-                    conv["priority"] = "high"
-                    await ws_manager.broadcast_to_conversation(conversation_id, {
-                        "type": "status_changed",
-                        "status": "agent_handling",
-                        "priority": "high",
-                        "reason": ai_result.get("escalation_reason")
-                    })
+                        ai_msg_id = f"msg-{str(uuid.uuid4())[:8]}"
+                        ai_now = datetime.now(timezone.utc)
+                        ai_db_msg = Message(
+                            id=ai_msg_id,
+                            conversation_id=conversation_id,
+                            sender_type="ai_agent",
+                            sender_name="Circle AI",
+                            content=ai_res.get("response", "Thank you for reaching out to Circle Network."),
+                            tool_calls=ai_res.get("tool_calls"),
+                            created_at=ai_now,
+                            updated_at=ai_now,
+                        )
+                        db.add(ai_db_msg)
+                        if ai_res.get("escalate_to_human"):
+                            conv.status = "agent_handling"
+                            conv.priority = "urgent"
+                        await db.commit()
 
-                await ws_manager.broadcast_to_conversation(conversation_id, {
-                    "type": "new_message",
-                    "message": ai_msg
-                })
+                        ai_msg = {
+                            "id": ai_msg_id,
+                            "conversation_id": conversation_id,
+                            "sender_type": "ai_agent",
+                            "sender_name": "Circle AI",
+                            "content": ai_res.get("response"),
+                            "tool_calls": ai_res.get("tool_calls"),
+                            "created_at": ai_now.isoformat(),
+                        }
+                        await ws_manager.broadcast_to_conversation(conversation_id, {
+                            "type": "new_message",
+                            "message": ai_msg
+                        })
+                    except Exception as ai_err:
+                        logger.error(f"WebSocket AI agent error: {ai_err}")
 
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, conversation_id)

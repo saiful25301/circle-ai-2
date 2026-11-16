@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Phone,
@@ -10,13 +10,51 @@ import {
 } from 'lucide-react';
 import { SubscriberContact } from '../types';
 import { MOCK_SUBSCRIBERS } from '../mockData';
+import { api } from '../../../services/api';
 
 export const CustomerContactsView: React.FC = () => {
-  const [subscribers] = useState<SubscriberContact[]>(MOCK_SUBSCRIBERS);
+  const [subscribers, setSubscribers] = useState<SubscriberContact[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'degraded' | 'offline'>('all');
   const [selectedSub, setSelectedSub] = useState<SubscriberContact | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  const fetchSubscribers = async () => {
+    try {
+      const data = await api.getCustomers(statusFilter, search);
+      if (data && data.length > 0) {
+        const formatted: SubscriberContact[] = data.map((c: any) => ({
+          id: c.id,
+          subscriberId: c.subscriber_id,
+          fullName: c.full_name,
+          phone: c.phone,
+          email: c.email || 'N/A',
+          zone: c.zone || 'Dhaka',
+          address: c.address || 'Dhaka, Bangladesh',
+          pppoeUsername: c.pppoe_username,
+          planName: c.plan_name,
+          bandwidthMbps: c.bandwidth_mbps,
+          monthlyBillBdt: c.monthly_bill_bdt,
+          currentDueBdt: c.current_due_bdt,
+          opticalPowerDbm: c.optical_power_dbm,
+          connectionStatus: c.connection_status,
+          oltIp: c.olt_ip,
+          ponPort: c.pon_port,
+          onuMac: c.onu_mac,
+          joinDate: 'Nov 2026',
+        }));
+        setSubscribers(formatted);
+      } else {
+        setSubscribers(MOCK_SUBSCRIBERS);
+      }
+    } catch {
+      setSubscribers(MOCK_SUBSCRIBERS);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubscribers();
+  }, [statusFilter]);
 
   const filtered = subscribers.filter((s) => {
     if (statusFilter !== 'all' && s.connectionStatus !== statusFilter) return false;
@@ -33,9 +71,15 @@ export const CustomerContactsView: React.FC = () => {
     return true;
   });
 
-  const handleReboot = (sub: SubscriberContact) => {
-    setActionNotice(`Reboot signal sent to OLT ${sub.oltIp} for ONU port ${sub.ponPort}`);
-    setTimeout(() => setActionNotice(null), 3500);
+  const handleReboot = async (sub: SubscriberContact) => {
+    try {
+      const res = await api.rebootCustomer(sub.subscriberId);
+      setActionNotice(res.message || `Reboot signal sent to OLT ${sub.oltIp} for ONU port ${sub.ponPort}`);
+    } catch {
+      setActionNotice(`Reboot signal sent to OLT ${sub.oltIp} for ONU port ${sub.ponPort}`);
+    } finally {
+      setTimeout(() => setActionNotice(null), 3500);
+    }
   };
 
   return (

@@ -1,0 +1,525 @@
+import logging
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.security import get_password_hash
+from app.models import (
+    User,
+    Agent,
+    Package,
+    Customer,
+    Conversation,
+    Message,
+    Ticket,
+    Payment,
+    Lead,
+    KnowledgeDocument,
+    ToolLog,
+    AIFeedback,
+)
+
+logger = logging.getLogger(__name__)
+
+
+async def seed_database(db: AsyncSession) -> None:
+    """Seed initial Circle Network ISP demo data if database is fresh."""
+    # Check if admin already exists
+    admin_check = await db.execute(select(User).where(User.email == "admin@circlenetwork.com.bd"))
+    if admin_check.scalar_one_or_none():
+        return  # Already seeded
+
+    logger.info("Seeding initial Circle Network ISP database records...")
+
+    # 1. Users (Admin and Agent)
+    admin_user = User(
+        id="usr-admin-01",
+        email="admin@circlenetwork.com.bd",
+        full_name="Circle NOC Administrator",
+        hashed_password=get_password_hash("Circle@2026"),
+        role="admin",
+        is_active=True,
+    )
+    agent_user = User(
+        id="usr-agent-01",
+        email="agent@circlenetwork.com.bd",
+        full_name="Farhan Kabir",
+        hashed_password=get_password_hash("Agent@2026"),
+        role="agent",
+        is_active=True,
+    )
+    db.add_all([admin_user, agent_user])
+    await db.flush()
+
+    # 2. Agents
+    agents_data = [
+        Agent(
+            id="agt-1",
+            user_id=agent_user.id,
+            name="Farhan Kabir",
+            role="support_officer",
+            avatar="FK",
+            is_online=True,
+            max_active_chats=5,
+            active_chats_count=2,
+            resolved_today_count=18,
+        ),
+        Agent(
+            id="agt-2",
+            name="Mahbub Alam",
+            role="noc_engineer",
+            avatar="MA",
+            is_online=True,
+            max_active_chats=4,
+            active_chats_count=1,
+            resolved_today_count=12,
+        ),
+        Agent(
+            id="agt-3",
+            name="Nusrat Jahan",
+            role="billing_specialist",
+            avatar="NJ",
+            is_online=True,
+            max_active_chats=6,
+            active_chats_count=3,
+            resolved_today_count=24,
+        ),
+        Agent(
+            id="agt-4",
+            name="Tanvir Hasan",
+            role="support_officer",
+            avatar="TH",
+            is_online=False,
+            max_active_chats=5,
+            active_chats_count=0,
+            resolved_today_count=9,
+        ),
+    ]
+    db.add_all(agents_data)
+    await db.flush()
+
+    # 3. Packages
+    packages_data = [
+        Package(
+            id="pkg-1",
+            name="Circle Starter 20 Mbps",
+            code="CS-20",
+            bandwidth_mbps=20,
+            bdix_speed_mbps=100,
+            monthly_price_bdt=600.0,
+            description="Essential home fiber internet for browsing and standard streaming with 100 Mbps BDIX peering.",
+            is_active=True,
+        ),
+        Package(
+            id="pkg-2",
+            name="Circle Fast 30 Mbps",
+            code="CF-30",
+            bandwidth_mbps=30,
+            bdix_speed_mbps=100,
+            monthly_price_bdt=800.0,
+            description="Our most popular plan. High-speed fiber with zero-buffer YouTube, Facebook, and BDIX streaming.",
+            is_active=True,
+        ),
+        Package(
+            id="pkg-3",
+            name="Circle Turbo 50 Mbps",
+            code="CT-50",
+            bandwidth_mbps=50,
+            bdix_speed_mbps=200,
+            monthly_price_bdt=1200.0,
+            description="Ultra-responsive broadband for multi-device households and 4K smart TVs.",
+            is_active=True,
+        ),
+        Package(
+            id="pkg-4",
+            name="Circle Gamer 60 Mbps",
+            code="CG-60",
+            bandwidth_mbps=60,
+            bdix_speed_mbps=300,
+            monthly_price_bdt=1400.0,
+            description="Optimized routing with low ping for Valorant, CS2, PUBG, and high-speed BDIX cache.",
+            is_active=True,
+        ),
+        Package(
+            id="pkg-5",
+            name="Circle Ultra 100 Mbps",
+            code="CU-100",
+            bandwidth_mbps=100,
+            bdix_speed_mbps=500,
+            monthly_price_bdt=2000.0,
+            description="Enterprise & power-user fiber with dedicated public IP and 500 Mbps local peering.",
+            is_active=True,
+        ),
+    ]
+    db.add_all(packages_data)
+    await db.flush()
+
+    # 4. Customers
+    customers_data = [
+        Customer(
+            id="cst-1",
+            subscriber_id="CN-88214",
+            full_name="Rashedul Hasan",
+            phone="+8801711223344",
+            email="rashed.mirpur@gmail.com",
+            address="House 42, Road 7, Block C, Mirpur-10, Dhaka",
+            zone="Mirpur-10",
+            package_id="pkg-2",
+            pppoe_username="rashed_mirpur10",
+            plan_name="Circle Fast 30 Mbps",
+            bandwidth_mbps=30,
+            monthly_bill_bdt=800.0,
+            current_due_bdt=0.0,
+            olt_ip="10.200.14.2",
+            pon_port="EPON0/2:4",
+            onu_mac="E0:67:B3:91:AA:12",
+            optical_power_dbm=-19.4,
+            connection_status="online",
+        ),
+        Customer(
+            id="cst-2",
+            subscriber_id="CN-99412",
+            full_name="Tanvir Ahmed",
+            phone="+8801819887766",
+            email="tanvir.ahmed@yahoo.com",
+            address="Apartment 4B, Road 27, Dhanmondi, Dhaka",
+            zone="Dhanmondi",
+            package_id="pkg-4",
+            pppoe_username="tanvir_dhanmondi",
+            plan_name="Circle Gamer 60 Mbps",
+            bandwidth_mbps=60,
+            monthly_bill_bdt=1400.0,
+            current_due_bdt=1400.0,
+            olt_ip="10.200.22.8",
+            pon_port="GPON0/1:7",
+            onu_mac="F4:8E:38:12:90:BB",
+            optical_power_dbm=-28.9,  # High optical loss!
+            connection_status="degraded",
+        ),
+        Customer(
+            id="cst-3",
+            subscriber_id="CN-77301",
+            full_name="Nazmul Huda",
+            phone="+8801914556677",
+            email="nazmul.huda@gmail.com",
+            address="Sector 4, Road 11, Uttara, Dhaka",
+            zone="Uttara",
+            package_id="pkg-3",
+            pppoe_username="nazmul_uttara4",
+            plan_name="Circle Turbo 50 Mbps",
+            bandwidth_mbps=50,
+            monthly_bill_bdt=1200.0,
+            current_due_bdt=0.0,
+            olt_ip="10.200.18.5",
+            pon_port="EPON0/1:2",
+            onu_mac="C8:3A:35:4F:99:E1",
+            optical_power_dbm=-21.2,
+            connection_status="online",
+        ),
+        Customer(
+            id="cst-4",
+            subscriber_id="CN-66104",
+            full_name="Sabina Yasmin",
+            phone="+8801611009988",
+            email="sabina.yasmin@outlook.com",
+            address="Road 11, Block D, Banani, Dhaka",
+            zone="Banani",
+            package_id="pkg-2",
+            pppoe_username="sabina_banani",
+            plan_name="Circle Fast 30 Mbps",
+            bandwidth_mbps=30,
+            monthly_bill_bdt=800.0,
+            current_due_bdt=800.0,
+            olt_ip="10.200.30.12",
+            pon_port="GPON0/3:5",
+            onu_mac="BC:24:11:80:55:0A",
+            optical_power_dbm=-23.5,
+            connection_status="online",
+        ),
+        Customer(
+            id="cst-5",
+            subscriber_id="CN-55219",
+            full_name="Arifur Rahman",
+            phone="+8801715667788",
+            email="arifur.rahman@gmail.com",
+            address="House 8, Road 2, Block B, Mohammadpur, Dhaka",
+            zone="Mohammadpur",
+            package_id="pkg-5",
+            pppoe_username="arif_mohammadpur",
+            plan_name="Circle Ultra 100 Mbps",
+            bandwidth_mbps=100,
+            monthly_bill_bdt=2000.0,
+            current_due_bdt=0.0,
+            olt_ip="10.200.16.4",
+            pon_port="EPON0/4:1",
+            onu_mac="D4:6E:0E:3B:77:2C",
+            optical_power_dbm=-18.7,
+            connection_status="online",
+        ),
+    ]
+    db.add_all(customers_data)
+    await db.flush()
+
+    # 5. Knowledge Documents
+    kb_data = [
+        KnowledgeDocument(
+            id="kb-1",
+            title="Troubleshooting Red LOS Light on Fiber ONU",
+            slug="troubleshoot-red-los-onu",
+            category="troubleshooting",
+            content="""When the LOS (Loss of Signal) light on your Circle Network ONU is blinking red:
+1. Do not bend or sharply pull the thin yellow fiber optic patch cord.
+2. Check if the blue/green square SC/UPC connector is firmly inserted into the PON port until it clicks.
+3. If the drop wire from the outside pole was snagged or cut by utility workers, notify Circle AI to dispatch a fiber technician immediately.
+4. Optical power below -27 dBm will cause intermittent disconnection; normal signal is between -15 dBm and -24 dBm.""",
+            summary="Steps to identify optical fiber signal loss when the red LOS LED is flashing on the ONU.",
+            keywords=["LOS", "red light", "fiber break", "optical loss", "drop wire"],
+            citations_count=184,
+            views_count=520,
+            is_published=True,
+            author="NOC Technical Support",
+        ),
+        KnowledgeDocument(
+            id="kb-2",
+            title="Configuring PPPoE on TP-Link, D-Link, and Tenda Routers",
+            slug="router-pppoe-setup-guide",
+            category="router_setup",
+            content="""To set up your Wi-Fi router for Circle Network:
+1. Connect the LAN cable from the ONU to the WAN (blue) port of your router.
+2. Open a browser and navigate to 192.168.0.1 or 192.168.1.1.
+3. Set the Internet Connection Type to PPPoE.
+4. Enter your Circle Network PPPoE username and password (found on your activation SMS).
+5. Set the MTU size to 1492.
+6. Save and reboot your router. Within 30 seconds the WAN status should show Connected.""",
+            summary="Standard PPPoE configuration parameters and MTU 1492 settings for home routers.",
+            keywords=["PPPoE", "router setup", "TP-Link", "Tenda", "MTU 1492", "WAN"],
+            citations_count=142,
+            views_count=410,
+            is_published=True,
+            author="NOC Field Engineer",
+        ),
+        KnowledgeDocument(
+            id="kb-3",
+            title="How to Pay Circle Network Monthly Bill via bKash",
+            slug="bkash-merchant-payment-guide",
+            category="billing",
+            content="""Pay your monthly Circle Network broadband bill easily through bKash:
+1. Open the bKash App and tap 'Pay Bill'.
+2. Search for 'Circle Network' in the internet provider directory.
+3. Enter your Subscriber ID (e.g., CN-88214) or PPPoE Username.
+4. Review your monthly bill amount and enter your bKash PIN to confirm.
+5. You will receive an instant payment confirmation SMS, and your connection status will be renewed automatically.""",
+            summary="Step-by-step instructions for paying monthly ISP dues via the bKash app.",
+            keywords=["bKash", "bill pay", "due payment", "merchant", "invoice"],
+            citations_count=98,
+            views_count=350,
+            is_published=True,
+            author="Billing Accounts Team",
+        ),
+        KnowledgeDocument(
+            id="kb-4",
+            title="BDIX Peering & Low Latency Gaming Routes",
+            slug="bdix-peering-gaming-routes",
+            category="bdix",
+            content="""Circle Network is directly connected to the Bangladesh Internet Exchange (BDIX) with multi-gigabit uplinks.
+- Local streaming platforms (Bioscope, Chorki, Toffee, Bongo) stream at 100 Mbps regardless of base internet package.
+- Direct peering with regional gaming CDNs provides 25-35ms ping to Singapore and India servers for competitive games like Valorant and PUBG Mobile.
+- Contact Circle AI or NOC if you require custom BDIX routing optimization.""",
+            summary="Overview of high-speed BDIX local exchange peering and low-ping gaming routes.",
+            keywords=["BDIX", "gaming", "ping", "low latency", "peering"],
+            citations_count=76,
+            views_count=290,
+            is_published=True,
+            author="Core Network Team",
+        ),
+    ]
+    db.add_all(kb_data)
+    await db.flush()
+
+    # 6. Conversations and Messages
+    conv1 = Conversation(
+        id="conv-demo-mirpur",
+        customer_id="cst-1",
+        assigned_agent_id="agt-1",
+        channel="webchat",
+        status="ai_handling",
+        priority="normal",
+        customer_name="Rashedul Hasan",
+        customer_phone="+8801711223344",
+        subscriber_id="CN-88214",
+        is_ai_handled=True,
+        metadata_info={"zone": "Mirpur-10", "plan": "Circle Fast 30 Mbps"},
+    )
+    conv2 = Conversation(
+        id="conv-demo-dhanmondi",
+        customer_id="cst-2",
+        assigned_agent_id="agt-2",
+        channel="webchat",
+        status="agent_handling",
+        priority="urgent",
+        customer_name="Tanvir Ahmed",
+        customer_phone="+8801819887766",
+        subscriber_id="CN-99412",
+        is_ai_handled=False,
+        metadata_info={"zone": "Dhanmondi", "plan": "Circle Gamer 60 Mbps", "issue": "Critical Optical Loss"},
+    )
+    conv3 = Conversation(
+        id="conv-demo-banani",
+        customer_id="cst-4",
+        assigned_agent_id="agt-3",
+        channel="webchat",
+        status="resolved",
+        priority="normal",
+        customer_name="Sabina Yasmin",
+        customer_phone="+8801611009988",
+        subscriber_id="CN-66104",
+        is_ai_handled=True,
+        metadata_info={"zone": "Banani", "plan": "Circle Fast 30 Mbps", "issue": "bKash bill confirmation"},
+    )
+    db.add_all([conv1, conv2, conv3])
+    await db.flush()
+
+    # Messages for conv1
+    msgs_conv1 = [
+        Message(
+            id="msg-101",
+            conversation_id="conv-demo-mirpur",
+            sender_type="customer",
+            sender_name="Rashedul Hasan",
+            content="Hello, my internet seems a bit slow today. Can you check my connection status?",
+        ),
+        Message(
+            id="msg-102",
+            conversation_id="conv-demo-mirpur",
+            sender_type="ai_agent",
+            sender_name="Circle AI",
+            content="Hello Rashedul Hasan! I diagnosed your ONU on OLT 10.200.14.2 port EPON0/2:4. Your optical power is -19.4 dBm (Normal/Healthy) and your 30 Mbps profile is active. I sent a remote port ping to refresh your lease.",
+            tool_calls={"tool": "diagnose_onu_status", "optical_power_dbm": -19.4, "status": "healthy"},
+        ),
+    ]
+
+    # Messages for conv2
+    msgs_conv2 = [
+        Message(
+            id="msg-201",
+            conversation_id="conv-demo-dhanmondi",
+            sender_type="customer",
+            sender_name="Tanvir Ahmed",
+            content="Red light flashing on my ONU box! Frequent disconnects in Dhanmondi.",
+        ),
+        Message(
+            id="msg-202",
+            conversation_id="conv-demo-dhanmondi",
+            sender_type="ai_agent",
+            sender_name="Circle AI",
+            content="I ran an optical telemetry check and detected a critical signal drop of -28.9 dBm (Threshold: -27.0 dBm). I have automatically escalated this to our NOC engineer Mahbub Alam and generated emergency ticket TKT-2026-0819.",
+            tool_calls={"tool": "diagnose_onu_status", "optical_power_dbm": -28.9, "escalated": True},
+        ),
+        Message(
+            id="msg-203",
+            conversation_id="conv-demo-dhanmondi",
+            sender_type="human_agent",
+            sender_name="Mahbub Alam",
+            content="Hi Tanvir, NOC field team has been dispatched to Dhanmondi Road 27 junction box. Splicing drop wire now. Expected restore within 45 mins.",
+        ),
+    ]
+    db.add_all(msgs_conv1 + msgs_conv2)
+    await db.flush()
+
+    # 7. Tickets
+    tkt1 = Ticket(
+        id="tkt-1",
+        ticket_number="TKT-2026-0819",
+        customer_id="cst-2",
+        conversation_id="conv-demo-dhanmondi",
+        assigned_agent_id="agt-2",
+        title="Critical Optical Loss (-28.9 dBm) in Dhanmondi",
+        description="ONU optical power is degraded below -27dBm on GPON0/1:7. Customer experiencing packet loss and red LOS blinking in Dhanmondi.",
+        category="optical_loss",
+        priority="urgent",
+        status="in_progress",
+        optical_loss_dbm=-28.9,
+        resolution_notes="Dispatched fiber team to Road 27 TJ Box.",
+    )
+    tkt2 = Ticket(
+        id="tkt-2",
+        ticket_number="TKT-2026-0742",
+        customer_id="cst-4",
+        conversation_id="conv-demo-banani",
+        assigned_agent_id="agt-3",
+        title="bKash Payment Verification Discrepancy",
+        description="Subscriber paid 800 BDT via bKash transaction BKH-99214. Ledger sync pending in billing database.",
+        category="billing",
+        priority="normal",
+        status="resolved",
+        resolution_notes="Transaction verified with bKash merchant statement and account credited.",
+        resolved_at=datetime.now(timezone.utc),
+    )
+    db.add_all([tkt1, tkt2])
+    await db.flush()
+
+    # 8. Payments
+    payments_data = [
+        Payment(
+            id="pmt-1",
+            customer_id="cst-1",
+            transaction_id="BKH-2026-88214",
+            amount_bdt=800.0,
+            payment_method="bkash",
+            status="paid",
+            billing_month="November 2026",
+            phone="+8801711223344",
+        ),
+        Payment(
+            id="pmt-2",
+            customer_id="cst-3",
+            transaction_id="BKH-2026-77301",
+            amount_bdt=1200.0,
+            payment_method="bkash",
+            status="paid",
+            billing_month="November 2026",
+            phone="+8801914556677",
+        ),
+        Payment(
+            id="pmt-3",
+            customer_id="cst-5",
+            transaction_id="NGD-2026-55219",
+            amount_bdt=2000.0,
+            payment_method="nagad",
+            status="paid",
+            billing_month="November 2026",
+            phone="+8801715667788",
+        ),
+    ]
+    db.add_all(payments_data)
+    await db.flush()
+
+    # 9. Tool Logs
+    logs_data = [
+        ToolLog(
+            id="log-1",
+            tool_name="diagnose_onu_status",
+            conversation_id="conv-demo-mirpur",
+            subscriber_id="CN-88214",
+            input_args={"subscriber_id": "CN-88214"},
+            output_result={"connection_status": "online", "optical_power_dbm": -19.4, "olt_ip": "10.200.14.2"},
+            gemini_model="gemini-1.5-flash",
+            execution_time_ms=124,
+            confidence_score=0.98,
+            escalated=False,
+        ),
+        ToolLog(
+            id="log-2",
+            tool_name="diagnose_onu_status",
+            conversation_id="conv-demo-dhanmondi",
+            subscriber_id="CN-99412",
+            input_args={"subscriber_id": "CN-99412"},
+            output_result={"connection_status": "degraded", "optical_power_dbm": -28.9, "error": "Signal below -27.0 dBm threshold"},
+            gemini_model="gemini-1.5-flash",
+            execution_time_ms=138,
+            confidence_score=0.99,
+            escalated=True,
+        ),
+    ]
+    db.add_all(logs_data)
+    await db.commit()
+    logger.info("Circle Network initial demo database successfully seeded!")

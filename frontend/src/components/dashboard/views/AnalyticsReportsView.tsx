@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -9,14 +9,40 @@ import {
   PieChart,
 } from 'lucide-react';
 import { MOCK_AGENTS } from '../mockData';
+import { api } from '../../../services/api';
 
 export const AnalyticsReportsView: React.FC = () => {
-  const issues = [
-    { label: 'Fiber Optical Loss / Red LOS on ONU', percentage: 42, color: 'bg-red-500' },
-    { label: 'Monthly Bill / bKash Payment Reconciliation', percentage: 30, color: 'bg-[#FDBC1F]' },
-    { label: 'Wi-Fi Router PPPoE (MTU 1492) Setup', percentage: 17, color: 'bg-blue-500' },
-    { label: 'Bandwidth Upgrade & BDIX Peering Routing', percentage: 11, color: 'bg-emerald-500' },
-  ];
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const live = await api.getAnalytics();
+        setStats(live);
+      } catch {
+        // fallback
+      }
+    }
+    loadStats();
+  }, []);
+
+  const issues = stats?.top_issues?.length
+    ? stats.top_issues.map((i: any, idx: number) => ({
+        label: i.category,
+        percentage: i.percentage,
+        color: ['bg-red-500', 'bg-amber-500', 'bg-blue-500', 'bg-emerald-500'][idx % 4],
+      }))
+    : [
+        { label: 'Fiber Optical Loss / Red LOS on ONU', percentage: 42, color: 'bg-red-500' },
+        { label: 'Monthly Bill / bKash Payment Reconciliation', percentage: 30, color: 'bg-[#FDBC1F]' },
+        { label: 'Wi-Fi Router PPPoE (MTU 1492) Setup', percentage: 17, color: 'bg-blue-500' },
+        { label: 'Bandwidth Upgrade & BDIX Peering Routing', percentage: 11, color: 'bg-emerald-500' },
+      ];
+
+  const deflectionRate = stats ? `${stats.ai_resolved_percentage}%` : '74.2%';
+  const csat = stats ? `${stats.customer_satisfaction_score} / 5.0` : '4.8 / 5.0';
+  const latency = stats ? `${stats.average_response_time_seconds}s` : '1.1s';
+  const handoverRate = stats ? `${stats.human_escalated_percentage}%` : '21.6%';
 
   return (
     <div className="flex-1 overflow-y-auto widget-scroll p-6 space-y-6 bg-slate-50 text-slate-900">
@@ -43,7 +69,7 @@ export const AnalyticsReportsView: React.FC = () => {
             <span className="text-xs text-slate-500 font-medium">AI Deflection Rate</span>
             <Zap className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">74.2%</div>
+          <div className="text-3xl font-extrabold text-slate-900">{deflectionRate}</div>
           <div className="text-[11px] text-emerald-700 font-semibold mt-1">
             ↑ 5.8% vs last month
           </div>
@@ -54,7 +80,7 @@ export const AnalyticsReportsView: React.FC = () => {
             <span className="text-xs text-slate-500 font-medium">Customer CSAT</span>
             <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">4.8 / 5.0</div>
+          <div className="text-3xl font-extrabold text-slate-900">{csat}</div>
           <div className="text-[11px] text-slate-500 mt-1">Based on 1,420 ratings</div>
         </div>
 
@@ -63,7 +89,7 @@ export const AnalyticsReportsView: React.FC = () => {
             <span className="text-xs text-slate-500 font-medium">First Response Latency</span>
             <Clock className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">1.1s</div>
+          <div className="text-3xl font-extrabold text-slate-900">{latency}</div>
           <div className="text-[11px] text-emerald-700 font-semibold mt-1">
             Instant Gemini AI inference
           </div>
@@ -74,7 +100,7 @@ export const AnalyticsReportsView: React.FC = () => {
             <span className="text-xs text-slate-500 font-medium">Human Handover Rate</span>
             <Users className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900">21.6%</div>
+          <div className="text-3xl font-extrabold text-slate-900">{handoverRate}</div>
           <div className="text-[11px] text-slate-500 mt-1">Only severe fiber issues</div>
         </div>
       </div>
@@ -89,7 +115,7 @@ export const AnalyticsReportsView: React.FC = () => {
           </h3>
 
           <div className="space-y-4 pt-2">
-            {issues.map((item, idx) => (
+            {issues.map((item: any, idx: number) => (
               <div key={idx} className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-700">{item.label}</span>

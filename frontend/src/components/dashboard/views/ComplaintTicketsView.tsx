@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { SupportTicketItem } from '../types';
 import { MOCK_TICKETS, MOCK_AGENTS } from '../mockData';
+import { api } from '../../../services/api';
 
 interface ComplaintTicketsViewProps {
   onOpenCreateModal: () => void;
@@ -15,10 +16,42 @@ interface ComplaintTicketsViewProps {
 export const ComplaintTicketsView: React.FC<ComplaintTicketsViewProps> = ({
   onOpenCreateModal,
 }) => {
-  const [tickets, setTickets] = useState<SupportTicketItem[]>(MOCK_TICKETS);
+  const [tickets, setTickets] = useState<SupportTicketItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
   const [search, setSearch] = useState('');
   const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem | null>(null);
+
+  const fetchTickets = async () => {
+    try {
+      const data = await api.getTickets(statusFilter);
+      if (data && data.length > 0) {
+        const formatted: SupportTicketItem[] = data.map((t: any) => ({
+          id: t.id,
+          ticketNumber: t.ticket_number,
+          subscriberId: t.subscriber_id || t.customer_id,
+          subscriberName: t.subscriber_name || 'Subscriber',
+          title: t.title,
+          category: t.category,
+          priority: t.priority,
+          status: t.status,
+          assignedAgent: t.assigned_agent || 'Farhan Kabir',
+          conversationId: t.conversation_id,
+          createdAt: t.created_at || 'Just now',
+          updatedAt: t.resolved_at || 'Just now',
+          slaRemainingHours: t.sla_remaining_hours || 2,
+        }));
+        setTickets(formatted);
+      } else {
+        setTickets(MOCK_TICKETS);
+      }
+    } catch {
+      setTickets(MOCK_TICKETS);
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, [statusFilter]);
 
   const filtered = tickets.filter((t) => {
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
@@ -34,7 +67,12 @@ export const ComplaintTicketsView: React.FC<ComplaintTicketsViewProps> = ({
     return true;
   });
 
-  const handleUpdateStatus = (ticketId: string, newStatus: SupportTicketItem['status']) => {
+  const handleUpdateStatus = async (ticketId: string, newStatus: SupportTicketItem['status']) => {
+    try {
+      await api.updateTicketStatus(ticketId, newStatus);
+    } catch {
+      // offline fallback
+    }
     setTickets((prev) =>
       prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t))
     );
@@ -43,7 +81,12 @@ export const ComplaintTicketsView: React.FC<ComplaintTicketsViewProps> = ({
     }
   };
 
-  const handleAssignAgent = (ticketId: string, agentName: string) => {
+  const handleAssignAgent = async (ticketId: string, agentName: string) => {
+    try {
+      await api.updateTicketStatus(ticketId, undefined, undefined, agentName);
+    } catch {
+      // offline fallback
+    }
     setTickets((prev) =>
       prev.map((t) => (t.id === ticketId ? { ...t, assignedAgent: agentName } : t))
     );

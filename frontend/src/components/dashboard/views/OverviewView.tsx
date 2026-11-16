@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Zap,
   TrendingUp,
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { MOCK_DASHBOARD_METRICS, MOCK_AGENTS, MOCK_TICKETS } from '../mockData';
 import { DashboardSection } from '../types';
+import { api } from '../../../services/api';
 
 interface OverviewViewProps {
   onNavigateSection: (section: DashboardSection) => void;
@@ -26,7 +27,28 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onNavigateSection,
   onOpenTicketModal,
 }) => {
-  const m = MOCK_DASHBOARD_METRICS;
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const live = await api.getAnalytics();
+        setStats(live);
+      } catch {
+        // fallback
+      }
+    }
+    loadStats();
+  }, []);
+
+  const m = {
+    ...MOCK_DASHBOARD_METRICS,
+    totalConversationsToday: stats?.total_conversations ?? MOCK_DASHBOARD_METRICS.totalConversationsToday,
+    deflectionRate: stats?.ai_resolved_percentage ?? MOCK_DASHBOARD_METRICS.deflectionRate,
+    openNocTickets: stats?.open_tickets ?? MOCK_DASHBOARD_METRICS.openNocTickets,
+    avgFirstResponseSeconds: stats?.average_response_time_seconds ?? MOCK_DASHBOARD_METRICS.avgFirstResponseSeconds,
+    customerSatisfactionScore: stats?.customer_satisfaction_score ?? MOCK_DASHBOARD_METRICS.customerSatisfactionScore,
+  };
 
   return (
     <div className="flex-1 overflow-y-auto widget-scroll p-6 space-y-6 bg-slate-50 text-slate-900">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Zap,
   Code2,
@@ -6,11 +6,31 @@ import {
 } from 'lucide-react';
 import { AIToolActivityLog } from '../types';
 import { MOCK_AI_LOGS } from '../mockData';
+import { api } from '../../../services/api';
 
 export const AIAgentActivityView: React.FC = () => {
-  const [logs] = useState<AIToolActivityLog[]>(MOCK_AI_LOGS);
+  const [logs, setLogs] = useState<AIToolActivityLog[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedLog, setSelectedLog] = useState<AIToolActivityLog | null>(MOCK_AI_LOGS[0]);
+  const [selectedLog, setSelectedLog] = useState<AIToolActivityLog | null>(null);
+
+  useEffect(() => {
+    async function fetchLogs() {
+      try {
+        const live = await api.getAILogs();
+        if (live && live.length > 0) {
+          setLogs(live);
+          setSelectedLog(live[0]);
+        } else {
+          setLogs(MOCK_AI_LOGS);
+          setSelectedLog(MOCK_AI_LOGS[0]);
+        }
+      } catch {
+        setLogs(MOCK_AI_LOGS);
+        setSelectedLog(MOCK_AI_LOGS[0]);
+      }
+    }
+    fetchLogs();
+  }, []);
 
   const filtered = logs.filter(
     (l) =>

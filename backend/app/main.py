@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.exceptions import register_exception_handlers
+from app.core.seeder import seed_database
 from app.api.router import api_router
 # Import all 12 models to ensure they register on Base.metadata
 from app.models import (
@@ -28,11 +29,16 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure database schema is created
+    # Ensure database schema is created and initial data is seeded
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database schema verified/created successfully.")
+        
+        # Seed initial data
+        from app.core.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            await seed_database(session)
     except Exception as e:
         logger.warning(f"Database schema auto-creation encountered notice: {e}")
     yield

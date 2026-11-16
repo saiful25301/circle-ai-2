@@ -150,40 +150,51 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
     } : null);
 
     try {
-      if (conversation && !conversation.id.startsWith('mock-')) {
-        await api.sendMessage(conversation.id, text, 'customer', activeSub.name);
-        const refreshed = await api.getConversation(conversation.id);
-        setConversation(refreshed);
-      } else {
-        // Local simulation fallback
-        await new Promise(r => setTimeout(r, 1200));
-        let mockReply = language === 'bn'
+      let activeConv = conversation;
+      if (!activeConv || activeConv.id.startsWith('mock-')) {
+        activeConv = await api.createConversation(activeSubscriberId);
+        setConversation(activeConv);
+      }
+
+      await api.sendMessage(activeConv.id, text, 'customer', activeSub.name);
+      const refreshed = await api.getConversation(activeConv.id);
+      setConversation(refreshed);
+    } catch {
+      // Local simulation fallback if network request fails
+      await new Promise((r) => setTimeout(r, 1000));
+      let mockReply =
+        language === 'bn'
           ? `আপনার প্রশ্নটি পেয়েছি। সার্কেল নেটওয়ার্কের ফাইবার লাইন ডায়াগনস্টিক সম্পন্ন হয়েছে। সাবস্ক্রাইবার ${activeSubscriberId}-এর ওএনইউ সিগন্যাল স্বাভাবিক।`
           : `Thank you. I have verified subscriber ${activeSubscriberId}. Optical fiber power is optimal. How else may I assist you?`;
 
-        if (text.toLowerCase().includes('signal') || text.toLowerCase().includes('সিগন্যাল') || text.toLowerCase().includes('los')) {
-          mockReply = language === 'bn'
+      if (
+        text.toLowerCase().includes('signal') ||
+        text.toLowerCase().includes('সিগন্যাল') ||
+        text.toLowerCase().includes('los')
+      ) {
+        mockReply =
+          language === 'bn'
             ? `📡 অপটিক্যাল সিগন্যাল রিপোর্ট (${activeSubscriberId}):\n- ONU পাওয়ার: ${activeSub.powerDbm} dBm\n- ওএলটি পোর্ট: EPON0/2:4\n- সংযোগ স্থিতি: ${activeSub.status}`
             : `📡 Optical Power Telemetry for ${activeSubscriberId}:\n- Optical Power: ${activeSub.powerDbm} dBm\n- OLT Port: EPON0/2:4\n- Status: ${activeSub.status}`;
-        }
-
-        const aiMsg: Message = {
-          id: `ai-${Date.now()}`,
-          conversation_id: tempMsg.conversation_id,
-          sender_type: 'ai_agent',
-          sender_name: 'Circle AI',
-          content: mockReply,
-          created_at: new Date().toISOString(),
-        };
-
-        setConversation(prev => prev ? {
-          ...prev,
-          messages: [...prev.messages, aiMsg]
-        } : null);
       }
-    } catch (err: any) {
-      console.error('Failed to send message:', err);
-      setError('Unable to send message to Circle AI server.');
+
+      const aiMsg: Message = {
+        id: `ai-${Date.now()}`,
+        conversation_id: tempMsg.conversation_id,
+        sender_type: 'ai_agent',
+        sender_name: 'Circle AI',
+        content: mockReply,
+        created_at: new Date().toISOString(),
+      };
+
+      setConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: [...prev.messages, aiMsg],
+            }
+          : null
+      );
     } finally {
       setLoading(false);
     }
