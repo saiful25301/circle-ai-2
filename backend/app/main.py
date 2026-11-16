@@ -1,7 +1,11 @@
 import logging
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -51,6 +55,81 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    In-memory sliding-window rate limiting middleware.
+    Enforces route-based request thresholds:
+      - 10 req/min for auth login (/api/v1/auth/login)
+      - 30 req/min for AI chat (/api/v1/ai/chat)
+      - 120 req/min for general API routes
+    Returns HTTP 429 Too Many Requests with Retry-After header.
+    """
+    def __init__(self, app):
+        super().__init__(app)
+        self.requests = defaultdict(list)
+        self.last_cleanup = time.time()
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+
+        # Exempt health checks, docs, and direct websocket connections
+        if (
+            path in ["/health", "/api/v1/health", "/docs", "/openapi.json", "/redoc"]
+            or path.startswith("/ws/")
+        ):
+            return await call_next(request)
+
+        # Extract client IP (handle proxies)
+        forwarded = request.headers.get("x-forwarded-for")
+        client_ip = (
+            forwarded.split(",")[0].strip()
+            if forwarded
+            else (request.client.host if request.client else "127.0.0.1")
+        )
+
+        now = time.time()
+        window = 60.0  # 60 seconds sliding window
+
+        # Periodic cleanup of expired entries
+        if now - self.last_cleanup > 300:
+            cutoff = now - window
+            expired_keys = [k for k, v in self.requests.items() if not any(t > cutoff for t in v)]
+            for k in expired_keys:
+                self.requests.pop(k, None)
+            self.last_cleanup = now
+
+        # Determine threshold by route group
+        if path.startswith("/api/v1/auth/login"):
+            limit = 10
+            group = "auth"
+        elif path.startswith("/api/v1/ai/chat"):
+            limit = 30
+            group = "ai_chat"
+        else:
+            limit = 120
+            group = "general"
+
+        key = f"{client_ip}:{group}"
+        history = self.requests[key]
+
+        # Prune timestamps outside current sliding window
+        cutoff = now - window
+        history = [t for t in history if t > cutoff]
+        self.requests[key] = history
+
+        if len(history) >= limit:
+            oldest = history[0]
+            retry_after = max(1, int(window - (now - oldest)))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"Rate limit exceeded for {group}. Please retry after {retry_after} seconds."},
+                headers={"Retry-After": str(retry_after)}
+            )
+
+        history.append(now)
+        return await call_next(request)
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -60,6 +139,9 @@ app = FastAPI(
 
 # Register centralized error handlers
 register_exception_handlers(app)
+
+# Register Rate Limiting Middleware
+app.add_middleware(RateLimitMiddleware)
 
 # Configure CORS
 origins = settings.BACKEND_CORS_ORIGINS

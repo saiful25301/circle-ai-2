@@ -16,7 +16,8 @@ router = APIRouter()
 async def list_customers(
     status_filter: Optional[str] = None,
     search: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _user = Depends(require_agent_or_admin)
 ):
     """List all Circle Network subscribers from database with optional filters."""
     query = select(Customer)
@@ -62,7 +63,11 @@ async def list_customers(
 
 
 @router.get("/{subscriber_id}")
-async def get_customer(subscriber_id: str, db: AsyncSession = Depends(get_db)):
+async def get_customer(
+    subscriber_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user = Depends(require_agent_or_admin)
+):
     """Fetch subscriber profile by subscriber_id or PPPoE username."""
     sub_clean = subscriber_id.strip()
     result = await db.execute(
@@ -137,7 +142,11 @@ async def reboot_customer_onu(
 
 
 @router.get("/{subscriber_id}/diagnose", response_model=CustomerDiagnosisResponse)
-async def diagnose_customer_connection(subscriber_id: str, db: AsyncSession = Depends(get_db)):
+async def diagnose_customer_connection(
+    subscriber_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user = Depends(require_agent_or_admin)
+):
     """Diagnose optical fiber power, PPPoE auth, and ONU health."""
     sub_clean = subscriber_id.strip()
     result = await db.execute(

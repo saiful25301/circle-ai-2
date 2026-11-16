@@ -150,15 +150,175 @@ npm run dev
 
 ## 📡 ISP Tool Calling Capabilities
 
-The AI Agent automatically recognizes customer intent and triggers specialized ISP functions:
+The AI Agent automatically recognizes customer intent and triggers specialized ISP backend functions:
 
-| Tool Name | Purpose | Example Query |
-| :--- | :--- | :--- |
-| `diagnose_onu_status` | Queries OLT for optical power (dBm), PON port, ONU MAC & status | *"My internet is slow, check my signal"* |
-| `check_subscriber_billing` | Fetches plan, due amounts, and bKash merchant payment flow | *"How much is my bill and how do I pay via bKash?"* |
-| `reboot_onu_session` | Dispatches soft reboot / session refresh command on OLT | *"Can you reset or reboot my connection port?"* |
-| `list_internet_plans` | Lists 20 Mbps to 100 Mbps fiber plans with BDT pricing | *"What packages do you have?"* |
-| `escalate_to_human_agent` | Creates an escalated NOC ticket for human support officers | *"I need to speak with a human support agent"* |
+| Tool Name | Domain | Purpose | Example Query |
+| :--- | :--- | :--- | :--- |
+| `get_customer_info` | Customer | Fetches subscriber profile, package & optical telemetry | *"Who am I / check my account CN-88214"* |
+| `verify_customer` | Security | Verifies subscriber identity before exposing billing/line data | *"Verify my account with phone 01711000001"* |
+| `check_connection_status` | NOC / OLT | Inspects live optical power (dBm), ONU status, & PON port | *"My internet is slow, check my signal"* |
+| `check_internet_outage` | Network | Checks area-wide fiber backbone cuts & scheduled maintenance | *"Is there an outage in Dhanmondi?"* |
+| `troubleshoot_internet` | Support | Provides step-by-step fiber & Wi-Fi router troubleshooting | *"Wi-Fi router shows orange light / slow speed"* |
+| `check_customer_bill` | Billing | Fetches current monthly bill, dues, and billing cycle date | *"How much is my bill and when is the due date?"* |
+| `check_payment_status` | Billing | Verifies recent bKash / Nagad / card payment status | *"Did you receive my bKash payment?"* |
+| `get_available_packages` | Sales | Returns official Circle Network 2026 fiber packages | *"What packages do you offer?"* |
+| `recommend_internet_package` | Sales | Matches optimal package based on usage (gaming/streaming) | *"Recommend a gaming package under ৳2500"* |
+| `check_service_coverage` | Sales | Verifies optical coverage in specific zones & districts | *"Do you provide internet in Mirpur or Uttara?"* |
+| `create_connection_lead` | Sales | Registers new customer installation inquiries in CRM | *"I want to take a new connection in Banani"* |
+| `create_complaint_ticket` | NOC Support | Dispatches official NOC complaint ticket for field tech | *"File a complaint for high optical loss"* |
+| `get_ticket_status` | Support | Tracks real-time NOC ticket resolution & assigned agent | *"What is the status of ticket TKT-2026-0042?"* |
+| `request_human_support` | Escalation | Seamlessly transfers conversation to live NOC human agent | *"I need to speak with a human support agent"* |
+
+---
+
+## 🔐 Security Architecture & Production Hardening
+
+Circle AI implements enterprise-grade security protocols:
+
+1. **Authentication & Password Hashing**:
+   - Passwords hashed using `bcrypt` (12 salt rounds, 72-byte safe truncation).
+   - Stateless JWT tokens signed with `HS256` and configurable expiration (`ACCESS_TOKEN_EXPIRE_MINUTES`).
+
+2. **Role-Based Access Control (RBAC)**:
+   - Granular role tiers: `admin`, `supervisor`, `agent`, `noc_engineer`, and `customer`.
+   - Subscriber PII endpoints (`/api/v1/customers`, `/api/v1/tickets`) strictly require authenticated Agent or Admin tokens.
+
+3. **API Rate Limiting (Sliding Window)**:
+   - Enforced by custom ASGI middleware:
+     - Auth Login (`/api/v1/auth/login`): **10 req/min** (brute-force defense).
+     - AI Chat (`/api/v1/ai/chat`): **30 req/min** (LLM cost & abuse defense).
+     - General Endpoints: **120 req/min**.
+   - Responds with `HTTP 429 Too Many Requests` and a standard `Retry-After: <seconds>` header.
+
+4. **Input Sanitization & XSS Defense**:
+   - Pydantic v2 schemas (`TicketCreate`, `MessageCreate`, `CustomerBase`, `ConversationFeedbackCreate`) strip dangerous HTML tags (`<script>`, `<iframe>`, `<style>`) and control characters before database persistence.
+
+5. **Secure WebSocket Authorization**:
+   - WebSocket `/ws/chat/{id}?client_type=agent&token={jwt}` requires valid JWT tokens before admitting agent connections, preventing unauthorized subscriber snooping into private agent internal notes.
+
+6. **Audit Logging & Telemetry**:
+   - All tool executions are logged with inputs, outputs, execution latency (ms), confidence score, and subscriber ID in `tool_logs`.
+
+---
+
+## 🐳 Production Deployment Guide
+
+### Option 1: Docker Compose (Full Stack with PostgreSQL + pgvector)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/circlenetwork/circle-ai.git
+cd circle-ai
+
+# 2. Configure environment files
+cp backend/.env.example backend/.env
+# Edit backend/.env and provide your GEMINI_API_KEY and production SECRET_KEY
+
+# 3. Launch stack with Docker Compose
+docker compose up --build -d
+```
+
+Services will start:
+- **Frontend SPA (Nginx)**: `http://localhost:5173` (or port 80 in production)
+- **FastAPI Backend**: `http://localhost:8000`
+- **PostgreSQL 16 + pgvector**: `localhost:5432`
+
+### Option 2: Production Nginx Reverse Proxy with HTTPS
+
+```nginx
+# /etc/nginx/sites-available/chat.circlenetworkbd.net
+server {
+    listen 80;
+    server_name chat.circlenetworkbd.net;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name chat.circlenetworkbd.net;
+
+    ssl_certificate /etc/letsencrypt/live/chat.circlenetworkbd.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chat.circlenetworkbd.net/privkey.pem;
+
+    # Frontend Static SPA
+    location / {
+        root /var/www/circle_ai/frontend/dist;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API Reverse Proxy
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket Real-Time Chat & Handoff
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+}
+```
+
+### Option 3: Embed Messenger on Official Website (`circlenetworkbd.net`)
+
+Paste before the closing `</body>` tag on the main WordPress or custom HTML site:
+
+```html
+<!-- Circle AI Customer Messenger Embed -->
+<script
+  src="https://chat.circlenetworkbd.net/widget.js"
+  id="circle-ai-messenger-script"
+  data-isp="Circle Network"
+  data-primary-color="#FDBC1F"
+  data-hotline="16207"
+  defer
+></script>
+<script>
+  window.addEventListener('DOMContentLoaded', function() {
+    if (window.CircleAIWidget) {
+      window.CircleAIWidget.init({
+        primaryColor: '#FDBC1F',
+        secondaryColor: '#3F3F3F',
+        initialLanguage: 'bn',
+        defaultOpen: false
+      });
+    }
+  });
+</script>
+```
+
+---
+
+## 🧪 Automated Testing & Verification
+
+Run the comprehensive production readiness test suite:
+
+```bash
+cd backend
+python test_production_readiness.py
+```
+
+Coverage:
+- ✅ Password Hashing (Bcrypt 12 rounds)
+- ✅ JWT Token Generation & Verification
+- ✅ Role-Based Access Control (RBAC 401/403)
+- ✅ Sliding-Window Rate Limiting (429 Too Many Requests)
+- ✅ Input Sanitization & XSS Tag Stripping
+- ✅ 12 SQLAlchemy 2.0 Database Tables & Seed Data
+- ✅ All 14 ISP Domain Tools Execution
+- ✅ Gemini Function Calling & Multi-Turn Workflows
+- ✅ Bilingual RAG Vector Semantic Search (English & Bangla)
+
 
 ---
 

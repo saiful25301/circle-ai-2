@@ -3,11 +3,13 @@ import logging
 from datetime import datetime, timezone
 import uuid
 from typing import Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
+from app.core.security import decode_access_token
 from app.core.websocket_manager import ws_manager
 from app.models.conversation import Conversation, Message
+from app.models.user import User
 from app.services.ai.agent import process_chat
 
 logger = logging.getLogger(__name__)
@@ -18,13 +20,33 @@ router = APIRouter()
 async def websocket_chat_endpoint(
     websocket: WebSocket,
     conversation_id: str,
-    client_type: Optional[str] = Query(default="customer")
+    client_type: Optional[str] = Query(default="customer"),
+    token: Optional[str] = Query(default=None)
 ):
     """
     Bidirectional WebSocket connection for live customer & agent messaging.
     Supports real-time messages, typing indicators, and private internal notes.
+    Enforces JWT authentication for human agent connections.
     """
-    await ws_manager.connect(websocket, conversation_id, client_type=client_type or "customer")
+    normalized_client = (client_type or "customer").lower()
+    if normalized_client == "agent":
+        if not token:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Token required for agent connection")
+            return
+        payload = decode_access_token(token)
+        user_id = payload.get("sub") if payload else None
+        if not payload or not user_id:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized agent credentials")
+            return
+
+        async with AsyncSessionLocal() as auth_db:
+            u_res = await auth_db.execute(select(User).where(User.id == user_id))
+            auth_user = u_res.scalar_one_or_none()
+            if not auth_user or not auth_user.is_active or auth_user.role not in ["admin", "supervisor", "agent", "noc_engineer"]:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized agent role")
+                return
+
+    await ws_manager.connect(websocket, conversation_id, client_type=normalized_client)
     try:
         while True:
             raw_text = await websocket.receive_text()

@@ -1,6 +1,17 @@
+import re
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+def sanitize_text(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    if isinstance(v, str):
+        cleaned = re.sub(r'<[^>]*>', '', v)
+        cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', cleaned)
+        return cleaned.strip()
+    return v
 
 
 class CustomerBase(BaseModel):
@@ -15,6 +26,11 @@ class CustomerBase(BaseModel):
     bandwidth_mbps: int = 30
     monthly_bill_bdt: float = 800.0
     current_due_bdt: float = 0.0
+
+    @field_validator("full_name", "phone", "email", "address", "zone", "pppoe_username", mode="before")
+    @classmethod
+    def sanitize_customer(cls, v):
+        return sanitize_text(v)
 
 
 class CustomerCreate(CustomerBase):

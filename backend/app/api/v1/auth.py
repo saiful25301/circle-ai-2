@@ -30,7 +30,10 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
             detail="Account is deactivated. Contact Circle NOC Administrator."
         )
 
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(
+        subject=user.id,
+        extra_claims={"role": user.role, "email": user.email}
+    )
     return Token(
         access_token=access_token,
         token_type="bearer",

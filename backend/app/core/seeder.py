@@ -398,61 +398,7 @@ async def seed_database(db: AsyncSession) -> None:
     db.add_all(agents_data)
     await db.flush()
 
-    # 3. Packages
-    packages_data = [
-        Package(
-            id="pkg-1",
-            name="Circle Starter 20 Mbps",
-            code="CS-20",
-            bandwidth_mbps=20,
-            bdix_speed_mbps=100,
-            monthly_price_bdt=600.0,
-            description="Essential home fiber internet for browsing and standard streaming with 100 Mbps BDIX peering.",
-            is_active=True,
-        ),
-        Package(
-            id="pkg-2",
-            name="Circle Fast 30 Mbps",
-            code="CF-30",
-            bandwidth_mbps=30,
-            bdix_speed_mbps=100,
-            monthly_price_bdt=800.0,
-            description="Our most popular plan. High-speed fiber with zero-buffer YouTube, Facebook, and BDIX streaming.",
-            is_active=True,
-        ),
-        Package(
-            id="pkg-3",
-            name="Circle Turbo 50 Mbps",
-            code="CT-50",
-            bandwidth_mbps=50,
-            bdix_speed_mbps=200,
-            monthly_price_bdt=1200.0,
-            description="Ultra-responsive broadband for multi-device households and 4K smart TVs.",
-            is_active=True,
-        ),
-        Package(
-            id="pkg-4",
-            name="Circle Gamer 60 Mbps",
-            code="CG-60",
-            bandwidth_mbps=60,
-            bdix_speed_mbps=300,
-            monthly_price_bdt=1400.0,
-            description="Optimized routing with low ping for Valorant, CS2, PUBG, and high-speed BDIX cache.",
-            is_active=True,
-        ),
-        Package(
-            id="pkg-5",
-            name="Circle Ultra 100 Mbps",
-            code="CU-100",
-            bandwidth_mbps=100,
-            bdix_speed_mbps=500,
-            monthly_price_bdt=2000.0,
-            description="Enterprise & power-user fiber with dedicated public IP and 500 Mbps local peering.",
-            is_active=True,
-        ),
-    ]
-    db.add_all(packages_data)
-    await db.flush()
+    # 3. Packages are seeded with real Circle Network 2026 data by ensure_knowledge_and_packages_seeded()
 
     # 4. Customers
     customers_data = [

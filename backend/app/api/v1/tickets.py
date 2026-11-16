@@ -16,7 +16,8 @@ router = APIRouter()
 @router.get("", response_model=List[dict])
 async def list_tickets(
     status_filter: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _user = Depends(require_agent_or_admin)
 ):
     """List all NOC & customer tickets from database with customer details."""
     query = select(Ticket).order_by(Ticket.created_at.desc())
