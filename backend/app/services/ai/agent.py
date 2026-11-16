@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -351,7 +352,10 @@ async def process_chat(
                     kwargs["conversation_id"] = conv_id
                 
                 # Execute underlying authorized tool
-                res = fn(*args, **kwargs)
+                if asyncio.iscoroutinefunction(fn):
+                    res = await fn(*args, **kwargs)
+                else:
+                    res = fn(*args, **kwargs)
                 duration_ms = int((time.time() - start_t) * 1000)
 
                 # Check if this tool indicates escalation
@@ -481,7 +485,7 @@ async def process_chat(
 
     # Proactive tool selection in fallback mode
     if any(k in msg_lower for k in ["human", "agent", "support officer", "escalate", "মানুষ", "অফিসার"]):
-        res = request_human_support(conv_id, "Customer requested human support.")
+        res = await request_human_support(conv_id, "Customer requested human support.")
         session_tool_calls.append({"tool_name": "request_human_support", "arguments": {"conversation_id": conv_id}, "result": res})
         escalation_state["should_escalate"] = True
         escalation_state["reason"] = "Customer requested human support officer assistance"
@@ -491,7 +495,7 @@ async def process_chat(
             "I have transferred your conversation to our Circle Network Tier-1 NOC Desk. A support engineer is reviewing your details and will join shortly."
         )
     elif any(k in msg_lower for k in ["package", "plan", "speed", "price", "offer", "প্যাকেজ", "দাম", "অফার"]):
-        res = get_available_packages()
+        res = await get_available_packages()
         session_tool_calls.append({"tool_name": "get_available_packages", "arguments": {}, "result": res})
         plans = res.get("packages", [])
         if is_bangla:
@@ -502,7 +506,7 @@ async def process_chat(
             reply = f"🚀 **Circle Network Fiber Internet Packages**:\n\n{pkg_md}\n\nAll plans include true unlimited high-speed data with ultra-low ping BDIX connectivity."
     elif any(k in msg_lower for k in ["bill", "due", "payment", "bkash", "বিল", "বিকাশ", "টাকা"]):
         sub_id = target_sub or "CN-88214"
-        res = check_customer_bill(sub_id)
+        res = await check_customer_bill(sub_id)
         session_tool_calls.append({"tool_name": "check_customer_bill", "arguments": {"subscriber_id_or_pppoe": sub_id}, "result": res})
         if is_bangla:
             reply = (
@@ -529,7 +533,7 @@ async def process_chat(
             )
     elif any(k in msg_lower for k in ["signal", "optical", "power", "los", "red light", "fiber", "slow", "down", "সিগন্যাল", "স্লো"]):
         sub_id = target_sub or "CN-88214"
-        res = check_connection_status(sub_id)
+        res = await check_connection_status(sub_id)
         session_tool_calls.append({"tool_name": "check_connection_status", "arguments": {"subscriber_id_or_pppoe": sub_id}, "result": res})
         p = res.get("optical_power_dbm", -20.0)
         if res.get("requires_technician"):

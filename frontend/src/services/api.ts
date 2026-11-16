@@ -6,7 +6,8 @@ import {
   KnowledgeArticle,
 } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api/v1';
+const rawApiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1';
+const API_BASE = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl.replace(/\/+$/, '')}/api/v1`;
 
 export interface AuthUser {
   id: string;
