@@ -1,6 +1,6 @@
 import json
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
+from typing import List, Union, Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,15 +10,43 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
-    # Security
+    # Security & Authentication
     SECRET_KEY: str = "circle-ai-secret-key-development-minimum-32-characters-long"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
-    # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./circle_ai.db"
+    # PostgreSQL Database Settings
+    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "circle_ai"
 
-    # Gemini
+    # Direct database connection string (can override individual postgres parameters)
+    DATABASE_URL: Optional[str] = None
+    SYNC_DATABASE_URL: Optional[str] = None
+
+    @property
+    def async_database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def sync_database_url(self) -> str:
+        if self.SYNC_DATABASE_URL:
+            return self.SYNC_DATABASE_URL
+        if self.DATABASE_URL:
+            # Convert async driver to sync driver for alembic/psycopg2
+            url = self.DATABASE_URL
+            if "postgresql+asyncpg" in url:
+                return url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+            if "sqlite+aiosqlite" in url:
+                return url.replace("sqlite+aiosqlite", "sqlite")
+            return url
+        return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    # Google Gemini API
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-flash"
     GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"

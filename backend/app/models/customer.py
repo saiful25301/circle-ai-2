@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
@@ -12,11 +13,12 @@ class Customer(Base):
     subscriber_id = Column(String(50), unique=True, index=True, nullable=False)  # e.g., CN-88214
     full_name = Column(String(255), nullable=False)
     phone = Column(String(50), index=True, nullable=False)
-    email = Column(String(255), nullable=True)
+    email = Column(String(255), index=True, nullable=True)
     address = Column(String(500), nullable=True)  # e.g. Mirpur-10, Dhaka
-    zone = Column(String(100), nullable=True)     # e.g. Zone-DHK-North
+    zone = Column(String(100), index=True, nullable=True)  # e.g. Dhanmondi, Uttara
 
     # ISP Network & PPPoE specs
+    package_id = Column(String(36), ForeignKey("packages.id"), nullable=True, index=True)
     pppoe_username = Column(String(100), unique=True, index=True, nullable=False)
     plan_name = Column(String(100), default="Circle Fast 30 Mbps")
     bandwidth_mbps = Column(Integer, default=30)
@@ -28,6 +30,18 @@ class Customer(Base):
     pon_port = Column(String(50), default="EPON0/2:4")
     onu_mac = Column(String(50), default="E0:67:B3:91:AA:12")
     optical_power_dbm = Column(Float, default=-19.5)  # Healthy: -15 to -24 dBm; Critical: < -27 dBm
-    connection_status = Column(String(50), default="online")  # online, offline, degraded
+    connection_status = Column(String(50), default="online", index=True)  # online, offline, degraded
     last_online_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Relationships
+    package = relationship("Package", back_populates="customers")
+    conversations = relationship("Conversation", back_populates="customer")
+    tickets = relationship("Ticket", back_populates="customer")
+    payments = relationship("Payment", back_populates="customer")

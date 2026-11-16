@@ -1,16 +1,40 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.exceptions import register_exception_handlers
 from app.api.router import api_router
+# Import all 12 models to ensure they register on Base.metadata
+from app.models import (
+    User,
+    Agent,
+    Package,
+    Customer,
+    Conversation,
+    Message,
+    Ticket,
+    Payment,
+    Lead,
+    KnowledgeDocument,
+    ToolLog,
+    AIFeedback,
+)
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create DB tables if not present
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Ensure database schema is created
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema verified/created successfully.")
+    except Exception as e:
+        logger.warning(f"Database schema auto-creation encountered notice: {e}")
     yield
     await engine.dispose()
 
@@ -21,6 +45,9 @@ app = FastAPI(
     description="Circle AI — AI-first Customer Support Platform for Circle Network ISP (Bangladesh)",
     lifespan=lifespan
 )
+
+# Register centralized error handlers
+register_exception_handlers(app)
 
 # Configure CORS
 origins = settings.BACKEND_CORS_ORIGINS
@@ -35,6 +62,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount API v1 router
 app.include_router(api_router, prefix="/api/v1")
 
 
@@ -52,8 +80,24 @@ async def root():
 @app.get("/health")
 @app.get("/api/v1/health")
 async def health_check():
+    db_status = "unknown"
+    dialect = "unknown"
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+            dialect = conn.dialect.name
+            db_status = "connected"
+    except Exception as e:
+        db_status = f"disconnected: {str(e)}"
+
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
-        "gemini_model": settings.GEMINI_MODEL
+        "database": {
+            "status": db_status,
+            "dialect": dialect,
+            "url": settings.async_database_url.split("@")[-1] if "@" in settings.async_database_url else settings.async_database_url
+        },
+        "gemini_model": settings.GEMINI_MODEL,
+        "isp": settings.ISP_NAME
     }
