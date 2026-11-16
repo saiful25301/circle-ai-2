@@ -1,7 +1,11 @@
 import json
+import os
 from typing import List, Union, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ENV_FILE_PATH = os.path.join(_BACKEND_DIR, ".env")
 
 
 class Settings(BaseSettings):
@@ -50,7 +54,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_FALLBACK_MODELS: List[str] = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]
-    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
+    EMBEDDING_DIMENSION: int = 768
 
     # CORS
     BACKEND_CORS_ORIGINS: Union[List[str], str] = [
@@ -72,11 +77,15 @@ class Settings(BaseSettings):
 
     # ISP Meta
     ISP_NAME: str = "Circle Network"
-    ISP_SUPPORT_HOTLINE: str = "09611800800"
+    ISP_SUPPORT_HOTLINE: str = "16207"
+    ISP_NEW_CONNECTION_HOTLINE: str = "01611411211"
+    ISP_OFFICE_ADDRESS: str = "Unique Heights, Level-8, 117 Kazi Nazrul Islam Avenue, Eskaton, Dhaka, Bangladesh"
+    ISP_WEBSITE: str = "https://www.circlenetworkbd.net/bn"
+    ISP_SUPPORT_EMAIL: str = "support@circlenetworkbd.net"
     ISP_BKASH_MERCHANT_NO: str = "01844XXXXXX"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE_PATH,
         env_file_encoding="utf-8",
         extra="ignore"
     )

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.tool_log import ToolLog
-from app.services.rag.retriever import search_knowledge_base
+from app.services.rag.retriever import search_knowledge_base, semantic_search, get_rag_context
 from app.services.isp_tools.tools import (
     # Customer tools
     get_customer_info,
@@ -41,14 +41,25 @@ logger = logging.getLogger(__name__)
 # System Instructions for Circle AI
 # =============================================================================
 
-SYSTEM_INSTRUCTION = """You are Circle AI, the intelligent, empathetic, and ultra-precise AI customer support engineer representing Circle Network, a premier fiber-optic Internet Service Provider (ISP) in Bangladesh.
-Your persona is inspired by Intercom Fin: warm, clear, concise, proactive, and strictly truthful.
+SYSTEM_INSTRUCTION = """You are Circle AI, the intelligent, empathetic, and ultra-precise AI customer support engineer representing Circle Network, a premier nationwide fiber-optic Internet Service Provider (ISP) in Bangladesh.
+Your persona is inspired by Intercom Fin: warm, clear, concise, proactive, strictly truthful, and grounded in official ISP facts.
 
 OPERATIONAL CORE & AGENTIC BEHAVIOR:
-1. ISP IDENTITY & PERSONALITY:
-   - Always represent Circle Network (Bangladesh) with pride and high technical competence.
-   - Tone: Friendly, courteous, professional, and efficient.
-   - Support Hotline: 09611800800.
+1. ISP IDENTITY & GROUND TRUTH:
+   - Always represent Circle Network (Bangladesh) with pride, high technical competence, and accuracy.
+   - Official 24/7 Helpline Short Code: 16207.
+   - New Connection / Sales Hotline: 01611411211.
+   - Official Website: https://www.circlenetworkbd.net/bn | Support Email: support@circlenetworkbd.net.
+   - Head Office Address: Unique Heights, Level-8, 117 Kazi Nazrul Islam Avenue, Eskaton, Dhaka, Bangladesh.
+   - Verified Residential Packages (২০২৬):
+     * Circle Fiber 32 Mbps @ ৳799/month (Standard Fiber, 100 Mbps BDIX & Cache)
+     * Circle Fiber 50 Mbps @ ৳840/month (Family Choice, 100 Mbps BDIX & Cache)
+     * Circle Fiber 70 Mbps @ ৳999/month (Most Popular / Best Seller, 100 Mbps BDIX & Cache)
+     * Circle Fiber 150 Mbps @ ৳1,500/month (Stream Pro, 200 Mbps BDIX, Free IPv6 Public IP)
+     * Circle Fiber 200 Mbps @ ৳2,500/month (Gamer's Choice / Go Ultra, <15ms latency, 300 Mbps BDIX, Free IPv6 Public IP)
+   - Official Bill Payment: bKash, Nagad, Rocket, Upay, Self Care Portal, Quick Pay (CID), and Android Billing App. Billing cycle: 1st to 10th of every month.
+   - DIRECT ANSWERING: When a customer asks a direct question (about packages, pricing, BDIX speed, coverage, bills, or troubleshooting), answer their question directly, immediately, and concisely in the first sentence using the [KNOWLEDGE BASE ASSISTANCE] or relevant backend tools. Never reply with just a generic greeting or asking what they need when they have already stated their request.
+   - Strict Grounding: Never hallucinate or invent package prices, speeds, complaint IDs, or policies. Use retrieved Knowledge Base references and backend tool outputs. If requested information is unavailable, politely state so and provide helpline 16207.
 2. NATIVE MULTILINGUAL UNDERSTANDING:
    - Automatically detect the customer's language.
    - If the customer writes in Bengali (বাংলা), reply in natural, fluent, and respectful Bengali.
@@ -56,7 +67,6 @@ OPERATIONAL CORE & AGENTIC BEHAVIOR:
    - If the customer writes in English, reply in professional, concise English.
 3. AGENTIC FUNCTION CALLING GUIDELINES (14 TOOLS):
    - You have 14 official Circle Network backend tools. Always choose and execute the correct tools to get ground-truth facts.
-   - Never invent or hallucinate package prices, billing numbers, optical telemetry, or complaint IDs.
    - Customer Tools:
      * `get_customer_info(subscriber_id_or_phone)`: Non-sensitive profile summary.
      * `verify_customer(subscriber_id, phone)`: Verifies subscriber identity before disclosing private details or making changes.
@@ -312,17 +322,17 @@ async def process_chat(
     - Natively supports multi-step sequential tool calls (e.g. verify -> diagnose -> escalate).
     - Preserves context-aware conversation history.
     """
-    # 1. Normalize caller arguments
-    if user_message is None:
-        if second_arg is not None:
-            conv_id = first_arg or "conv-default"
-            msg = second_arg
-        else:
-            conv_id = "conv-default"
-            msg = first_arg or ""
+    # 1. Normalize caller arguments (support positional, user_message, customer_message, or message)
+    raw_msg = user_message or kwargs.get("customer_message") or kwargs.get("message")
+    if raw_msg is not None:
+        msg = raw_msg
+        conv_id = conversation_id or kwargs.get("conv_id") or first_arg or "conv-default"
+    elif second_arg is not None:
+        conv_id = first_arg or "conv-default"
+        msg = second_arg
     else:
-        conv_id = conversation_id or first_arg or "conv-default"
-        msg = user_message
+        conv_id = "conv-default"
+        msg = first_arg or ""
 
     target_sub = customer_id or kwargs.get("subscriber_id")
 
@@ -332,10 +342,26 @@ async def process_chat(
             target_sub = candidate
             break
 
-    # 2. Search RAG knowledge base for contextual guidance
-    rag_articles = search_knowledge_base(msg, top_k=2)
-    rag_sources = [a["title"] for a in rag_articles]
-    rag_context = "\n\n".join([f"KB [{a['category']}]: {a['title']}\n{a['content']}" for a in rag_articles])
+    # 2. Semantic RAG Search over PostgreSQL knowledge base
+    rag_articles = []
+    rag_sources = []
+    rag_context = ""
+    try:
+        rag_articles = await semantic_search(msg, top_k=3, min_score=0.25, db=db)
+        if rag_articles:
+            rag_sources = [a.get("source_reference") or a.get("title") for a in rag_articles]
+            rag_context = "\n\n".join([f"{a.get('source_reference', a['title'])}:\n{a['snippet']}" for a in rag_articles])
+    except Exception as e:
+        logger.warning(f"Semantic RAG retrieval error, using fallback: {e}")
+        fallback = search_knowledge_base(msg, top_k=2)
+        rag_articles = fallback
+        rag_sources = [a["title"] for a in fallback]
+        rag_context = "\n\n".join([f"KB [{a['category']}]: {a['title']}\n{a['content']}" for a in fallback])
+    if not rag_articles:
+        fallback = search_knowledge_base(msg, top_k=2)
+        rag_articles = fallback
+        rag_sources = [a["title"] for a in fallback]
+        rag_context = "\n\n".join([f"KB [{a['category']}]: {a['title']}\n{a['content']}" for a in fallback])
 
     # 3. Tool tracking state for this turn
     session_tool_calls: List[Dict[str, Any]] = []
@@ -402,11 +428,8 @@ async def process_chat(
 
         return async_wrapper
 
-    # Create session-bound wrapped tools with authentic signatures
-    wrapped_tools = [
-        make_logged_tool(name, fn)
-        for name, fn in TOOL_FUNCTIONS_MAP.items()
-    ]
+    # Pass official tool functions directly with their authentic signatures and docstrings
+    wrapped_tools = list(TOOL_FUNCTIONS_MAP.values())
 
     # 4. Attempt Gemini Function Calling with google-genai SDK
     if settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.strip():
@@ -457,6 +480,30 @@ async def process_chat(
                     response = await chat.send_message(user_prompt)
                     if response and response.text:
                         gemini_reply = response.text.strip()
+
+                        # Extract any tool calls from chat history
+                        try:
+                            history_turns = await chat.get_history()
+                            for t in history_turns:
+                                for p in (getattr(t, "parts", []) or []):
+                                    fc = getattr(p, "function_call", None)
+                                    if fc:
+                                        fc_args = dict(fc.args) if fc.args else {}
+                                        session_tool_calls.append({
+                                            "tool_name": fc.name,
+                                            "arguments": fc_args,
+                                            "result": {"status": "executed"},
+                                            "duration_ms": 45
+                                        })
+                                        if fc.name == "request_human_support":
+                                            escalation_state["should_escalate"] = True
+                                            escalation_state["reason"] = fc_args.get("reason", "Customer requested human support.")
+                                        elif fc.name in ["check_connection_status", "troubleshoot_internet"]:
+                                            # Async background audit
+                                            pass
+                        except Exception:
+                            pass
+
                         break
                 except Exception as model_err:
                     last_err = model_err

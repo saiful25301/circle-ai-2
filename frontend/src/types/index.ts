@@ -71,8 +71,31 @@ export interface KnowledgeArticle {
   title: string;
   slug?: string;
   category: string;
+  summary?: string;
   content: string;
   keywords: string[];
+  is_published?: boolean;
+  author?: string;
+  citations_count?: number;
+  citationsByAI?: number;
+  views?: number;
+  views_count?: number;
+  has_embedding?: boolean;
+  chunk_count?: number;
+  lastUpdated?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SemanticSearchResultItem {
+  id: string;
+  document_id: string;
+  title: string;
+  category: string;
+  content?: string;
+  snippet: string;
+  similarity_score: number;
+  source_reference: string;
 }
 
 export interface DashboardStats {

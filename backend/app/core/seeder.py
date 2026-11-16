@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.core.security import get_password_hash
 from app.models import (
     User,
@@ -14,15 +14,155 @@ from app.models import (
     Payment,
     Lead,
     KnowledgeDocument,
+    KnowledgeChunk,
     ToolLog,
     AIFeedback,
 )
+from app.services.rag.retriever import REAL_CIRCLE_KNOWLEDGE_ARTICLES, index_document
 
 logger = logging.getLogger(__name__)
 
 
+REAL_PACKAGES_SEED = [
+    {
+        "id": "pkg-1",
+        "name": "Circle Fiber 32 Mbps",
+        "code": "CF-32",
+        "bandwidth_mbps": 32,
+        "bdix_speed_mbps": 100,
+        "monthly_price_bdt": 799.0,
+        "description": "আবাসিক ব্রাউজিং ও বিনোদনের জন্য সাশ্রয়ী প্যাকেজ। বাফারলেস ফেসবুক ভিডিও ও এইচডি ইউটিউব স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ক্যাশ।",
+        "is_active": True,
+    },
+    {
+        "id": "pkg-2",
+        "name": "Circle Fiber 50 Mbps",
+        "code": "CF-50",
+        "bandwidth_mbps": 50,
+        "bdix_speed_mbps": 100,
+        "monthly_price_bdt": 840.0,
+        "description": "ছোট ও মাঝারি পরিবারের জন্য ফ্যামিলি চয়েস। একাধিক ডিভাইসে ৪K স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ও ক্যাশ স্পিড।",
+        "is_active": True,
+    },
+    {
+        "id": "pkg-3",
+        "name": "Circle Fiber 70 Mbps",
+        "code": "CF-70",
+        "bandwidth_mbps": 70,
+        "bdix_speed_mbps": 100,
+        "monthly_price_bdt": 999.0,
+        "description": "সার্কেল নেটওয়ার্কের সর্বাধিক জনপ্রিয় বেস্ট সেলার হোম প্যাকেজ। সেরা গেমিং পিং, আল্ট্রা এইচডি স্ট্রিমিং ও ওয়ার্ক-ফ্রম-হোম।",
+        "is_active": True,
+    },
+    {
+        "id": "pkg-4",
+        "name": "Circle Fiber 150 Mbps",
+        "code": "CF-150",
+        "bandwidth_mbps": 150,
+        "bdix_speed_mbps": 200,
+        "monthly_price_bdt": 1500.0,
+        "description": "হেভি ডাউনলোডার ও কন্টেন্ট ক্রিয়েটরদের জন্য স্ট্রিম প্রো প্যাকেজ। বাফারলেস ৪K স্ট্রিমিং ও পাবলিক আইপি সাপোর্ট।",
+        "is_active": True,
+    },
+    {
+        "id": "pkg-5",
+        "name": "Circle Fiber 200 Mbps",
+        "code": "CF-200",
+        "bandwidth_mbps": 200,
+        "bdix_speed_mbps": 300,
+        "monthly_price_bdt": 2500.0,
+        "description": "গেমিং ইন্টারনেট ও পাওয়ার ইউজারদের জন্য আল্ট্রা-ফাস্ট প্যাকেজ। < ১৫ms লো পিং গেমিং, ফ্রি IPv6 পাবলিক আইপি ও ৩০০ Mbps বিডিআইএক্স।",
+        "is_active": True,
+    },
+]
+
+
+async def ensure_knowledge_and_packages_seeded(db: AsyncSession) -> None:
+    """Ensures real Circle Network packages and knowledge articles with vector embeddings are populated."""
+    # 1. Update or seed real packages
+    for p_info in REAL_PACKAGES_SEED:
+        p_res = await db.execute(select(Package).where(Package.id == p_info["id"]))
+        pkg = p_res.scalar_one_or_none()
+        if not pkg:
+            # Check by code
+            p_code_res = await db.execute(select(Package).where(Package.code == p_info["code"]))
+            pkg = p_code_res.scalar_one_or_none()
+
+        if pkg:
+            pkg.name = p_info["name"]
+            pkg.code = p_info["code"]
+            pkg.bandwidth_mbps = p_info["bandwidth_mbps"]
+            pkg.bdix_speed_mbps = p_info["bdix_speed_mbps"]
+            pkg.monthly_price_bdt = p_info["monthly_price_bdt"]
+            pkg.description = p_info["description"]
+            pkg.is_active = True
+        else:
+            new_pkg = Package(**p_info)
+            db.add(new_pkg)
+    await db.commit()
+
+    # 2. Seed real Knowledge Articles and generate semantic vector chunks
+    for a_data in REAL_CIRCLE_KNOWLEDGE_ARTICLES:
+        k_res = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.id == a_data["id"]))
+        doc = k_res.scalar_one_or_none()
+        if not doc:
+            k_slug_res = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.slug == a_data["slug"]))
+            doc = k_slug_res.scalar_one_or_none()
+
+        now = datetime.now(timezone.utc)
+        if doc:
+            doc.title = a_data["title"]
+            doc.category = a_data["category"]
+            doc.summary = a_data["summary"]
+            doc.content = a_data["content"]
+            doc.keywords = a_data["keywords"]
+            doc.is_published = True
+            doc.updated_at = now
+        else:
+            doc = KnowledgeDocument(
+                id=a_data["id"],
+                title=a_data["title"],
+                slug=a_data["slug"],
+                category=a_data["category"],
+                summary=a_data["summary"],
+                content=a_data["content"],
+                keywords=a_data["keywords"],
+                citations_count=18,
+                views_count=120,
+                is_published=True,
+                author="Circle NOC Documentation Team",
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(doc)
+            await db.flush()
+
+        # Chunk and index document only if missing embeddings or chunks
+        if not doc.embedding or not doc.chunks:
+            try:
+                await index_document(doc, db)
+            except Exception as e:
+                logger.warning(f"Error vector indexing document {doc.title}: {e}")
+
+    # 3. Ensure any existing un-indexed documents also receive embeddings and chunks
+    all_docs_res = await db.execute(select(KnowledgeDocument))
+    all_docs = all_docs_res.scalars().all()
+    for d in all_docs:
+        if not d.embedding or not d.chunks:
+            try:
+                await index_document(d, db)
+            except Exception as e:
+                logger.warning(f"Error indexing legacy doc {d.title}: {e}")
+
+    await db.commit()
+    logger.info("Circle Network verified packages and Knowledge Base articles with embeddings synced!")
+
+
 async def seed_database(db: AsyncSession) -> None:
     """Seed initial Circle Network ISP demo data if database is fresh."""
+    # Always ensure real packages and knowledge articles are present
+    await ensure_knowledge_and_packages_seeded(db)
+
     # Check if admin already exists
     admin_check = await db.execute(select(User).where(User.email == "admin@circlenetwork.com.bd"))
     if admin_check.scalar_one_or_none():
@@ -163,11 +303,11 @@ async def seed_database(db: AsyncSession) -> None:
             email="rashed.mirpur@gmail.com",
             address="House 42, Road 7, Block C, Mirpur-10, Dhaka",
             zone="Mirpur-10",
-            package_id="pkg-2",
+            package_id="pkg-3",
             pppoe_username="rashed_mirpur10",
-            plan_name="Circle Fast 30 Mbps",
-            bandwidth_mbps=30,
-            monthly_bill_bdt=800.0,
+            plan_name="Circle Fiber 70 Mbps",
+            bandwidth_mbps=70,
+            monthly_bill_bdt=999.0,
             current_due_bdt=0.0,
             olt_ip="10.200.14.2",
             pon_port="EPON0/2:4",
@@ -183,12 +323,12 @@ async def seed_database(db: AsyncSession) -> None:
             email="tanvir.ahmed@yahoo.com",
             address="Apartment 4B, Road 27, Dhanmondi, Dhaka",
             zone="Dhanmondi",
-            package_id="pkg-4",
+            package_id="pkg-5",
             pppoe_username="tanvir_dhanmondi",
-            plan_name="Circle Gamer 60 Mbps",
-            bandwidth_mbps=60,
-            monthly_bill_bdt=1400.0,
-            current_due_bdt=1400.0,
+            plan_name="Circle Fiber 200 Mbps",
+            bandwidth_mbps=200,
+            monthly_bill_bdt=2500.0,
+            current_due_bdt=2500.0,
             olt_ip="10.200.22.8",
             pon_port="GPON0/1:7",
             onu_mac="F4:8E:38:12:90:BB",
@@ -203,11 +343,11 @@ async def seed_database(db: AsyncSession) -> None:
             email="nazmul.huda@gmail.com",
             address="Sector 4, Road 11, Uttara, Dhaka",
             zone="Uttara",
-            package_id="pkg-3",
+            package_id="pkg-2",
             pppoe_username="nazmul_uttara4",
-            plan_name="Circle Turbo 50 Mbps",
+            plan_name="Circle Fiber 50 Mbps",
             bandwidth_mbps=50,
-            monthly_bill_bdt=1200.0,
+            monthly_bill_bdt=840.0,
             current_due_bdt=0.0,
             olt_ip="10.200.18.5",
             pon_port="EPON0/1:2",
@@ -223,12 +363,12 @@ async def seed_database(db: AsyncSession) -> None:
             email="sabina.yasmin@outlook.com",
             address="Road 11, Block D, Banani, Dhaka",
             zone="Banani",
-            package_id="pkg-2",
+            package_id="pkg-1",
             pppoe_username="sabina_banani",
-            plan_name="Circle Fast 30 Mbps",
-            bandwidth_mbps=30,
-            monthly_bill_bdt=800.0,
-            current_due_bdt=800.0,
+            plan_name="Circle Fiber 32 Mbps",
+            bandwidth_mbps=32,
+            monthly_bill_bdt=799.0,
+            current_due_bdt=799.0,
             olt_ip="10.200.30.12",
             pon_port="GPON0/3:5",
             onu_mac="BC:24:11:80:55:0A",
@@ -243,11 +383,11 @@ async def seed_database(db: AsyncSession) -> None:
             email="arifur.rahman@gmail.com",
             address="House 8, Road 2, Block B, Mohammadpur, Dhaka",
             zone="Mohammadpur",
-            package_id="pkg-5",
+            package_id="pkg-4",
             pppoe_username="arif_mohammadpur",
-            plan_name="Circle Ultra 100 Mbps",
-            bandwidth_mbps=100,
-            monthly_bill_bdt=2000.0,
+            plan_name="Circle Fiber 150 Mbps",
+            bandwidth_mbps=150,
+            monthly_bill_bdt=1500.0,
             current_due_bdt=0.0,
             olt_ip="10.200.16.4",
             pon_port="EPON0/4:1",

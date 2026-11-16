@@ -19,44 +19,49 @@ from app.models.conversation import Conversation
 
 OFFICIAL_PACKAGES = [
     {
-        "name": "Circle Starter 20 Mbps",
-        "speed_mbps": 20,
-        "price_bdt": 600,
+        "name": "Circle Fiber 32 Mbps",
+        "speed_mbps": 32,
+        "price_bdt": 799,
         "bdix_speed_mbps": 100,
-        "description": "Ideal for 1-3 devices, light browsing, and HD streaming.",
-        "popular": False
+        "description": "আবাসিক ব্রাউজিং ও বিনোদনের জন্য সাশ্রয়ী প্যাকেজ। বাফারলেস ফেসবুক ভিডিও ও এইচডি ইউটিউব স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ক্যাশ।",
+        "popular": False,
+        "features": ["বাফারলেস ৪K স্ট্রিমিং", "আনলিমিটেড ব্রাউজিং ও ডাউনলোড", "১০০ Mbps BDIX স্পিড", "২৪/৭ সাপোর্ট"]
     },
     {
-        "name": "Circle Fast 30 Mbps",
-        "speed_mbps": 30,
-        "price_bdt": 800,
-        "bdix_speed_mbps": 100,
-        "description": "Most popular home plan. Perfect for 4-6 devices, video calls, and buffer-free YouTube/Netflix.",
-        "popular": True
-    },
-    {
-        "name": "Circle Turbo 50 Mbps",
+        "name": "Circle Fiber 50 Mbps",
         "speed_mbps": 50,
-        "price_bdt": 1200,
+        "price_bdt": 840,
+        "bdix_speed_mbps": 100,
+        "description": "ছোট ও মাঝারি পরিবারের জন্য ফ্যামিলি চয়েস। একাধিক ডিভাইসে ৪K স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ও ক্যাশ স্পিড।",
+        "popular": False,
+        "features": ["ফ্যামিলি চয়েস", "বাফারলেস UHD ইউটিউব", "HD ফেসবুক ভিডিও", "১০০ Mbps BDIX স্পিড"]
+    },
+    {
+        "name": "Circle Fiber 70 Mbps",
+        "speed_mbps": 70,
+        "price_bdt": 999,
+        "bdix_speed_mbps": 100,
+        "description": "সার্কেল নেটওয়ার্কের সর্বাধিক জনপ্রিয় বেস্ট সেলার হোম প্যাকেজ। সেরা গেমিং পিং, আল্ট্রা এইচডি স্ট্রিমিং ও ওয়ার্ক-ফ্রম-হোম।",
+        "popular": True,
+        "features": ["সর্বাধিক জনপ্রিয় (বেস্ট সেলার)", "সেরা গেমিং পিং", "বাফারলেস ২K/৪K ইউটিউব", "১০০ Mbps BDIX স্পিড"]
+    },
+    {
+        "name": "Circle Fiber 150 Mbps",
+        "speed_mbps": 150,
+        "price_bdt": 1500,
         "bdix_speed_mbps": 200,
-        "description": "High-bandwidth connection for heavy remote work, multi-screen 4K streaming, and fast downloads.",
-        "popular": False
+        "description": "হেভি ডাউনলোডার ও কন্টেন্ট ক্রিয়েটরদের জন্য স্ট্রিম প্রো প্যাকেজ। বাফারলেস ৪K স্ট্রিমিং ও পাবলিক আইপি সাপোর্ট।",
+        "popular": False,
+        "features": ["স্ট্রিম প্রো পারফরম্যান্স", "বাফারলেস ৪K স্ট্রিমিং", "২০০ Mbps BDIX স্পিড", "ফ্রি IPv6 পাবলিক আইপি"]
     },
     {
-        "name": "Circle Gamer 60 Mbps",
-        "speed_mbps": 60,
-        "price_bdt": 1400,
+        "name": "Circle Fiber 200 Mbps",
+        "speed_mbps": 200,
+        "price_bdt": 2500,
         "bdix_speed_mbps": 300,
-        "description": "Low-ping gaming routes (Valorant, CS:GO, PUBG), optimized DNS, and 300 Mbps BDIX cache peering.",
-        "popular": True
-    },
-    {
-        "name": "Circle Ultra 100 Mbps",
-        "speed_mbps": 100,
-        "price_bdt": 2000,
-        "bdix_speed_mbps": 500,
-        "description": "Ultra gigabit fiber experience with Free Dedicated Real Public IP, ideal for creators and homelabs.",
-        "popular": False
+        "description": "গেমিং ইন্টারনেট ও পাওয়ার ইউজারদের জন্য আল্ট্রা-ফাস্ট প্যাকেজ। < ১৫ms লো পিং গেমিং, ফ্রি IPv6 পাবলিক আইপি ও ৩০০ Mbps বিডিআইএক্স।",
+        "popular": True,
+        "features": ["গেমিং ইন্টারনেট (< ১৫ms লেটেন্সি)", "৩০০ Mbps আল্ট্রা ফাস্ট BDIX", "ফ্রি IPv6 পাবলিক আইপি", "প্রফেশনাল গেমিং ও হেভি ইউজ"]
     }
 ]
 
@@ -531,21 +536,21 @@ async def recommend_internet_package(usage_type: str, num_devices: int, budget_b
     """
     usage = usage_type.lower()
     
-    if "game" in usage or "gaming" in usage or "ping" in usage:
-        rec = next(p for p in OFFICIAL_PACKAGES if "Gamer" in p["name"])
-        reason = "Engineered with dedicated low-latency gaming routing, optimized DNS, and 300 Mbps BDIX cache peering."
-    elif num_devices >= 8 or "4k" in usage or "creator" in usage or "heavy" in usage:
-        rec = next(p for p in OFFICIAL_PACKAGES if "Ultra" in p["name"])
-        reason = "Delivers 100 Mbps symmetrical fiber with Free Dedicated Real Public IP for smooth multi-screen 4K streaming."
-    elif num_devices >= 4 or (budget_bdt and budget_bdt >= 1200):
-        rec = next(p for p in OFFICIAL_PACKAGES if "Turbo" in p["name"])
-        reason = "Generous 50 Mbps bandwidth accommodates video meetings, downloads, and multiple simultaneous users."
-    elif budget_bdt and budget_bdt < 800:
-        rec = next(p for p in OFFICIAL_PACKAGES if "Starter" in p["name"])
-        reason = "Budget-friendly 20 Mbps fiber connection for light browsing and streaming."
+    if "game" in usage or "gaming" in usage or "ping" in usage or (budget_bdt and budget_bdt >= 2000):
+        rec = next(p for p in OFFICIAL_PACKAGES if "200" in p["name"])
+        reason = "Engineered with dedicated low-latency gaming routing (<15ms latency), optimized DNS, free IPv6 Public IP, and 300 Mbps BDIX cache peering."
+    elif num_devices >= 8 or "4k" in usage or "creator" in usage or "heavy" in usage or (budget_bdt and budget_bdt >= 1400):
+        rec = next(p for p in OFFICIAL_PACKAGES if "150" in p["name"])
+        reason = "Delivers 150 Mbps ultra-fast fiber with 200 Mbps BDIX peering and Free IPv6 Public IP for heavy multi-screen 4K streaming."
+    elif num_devices >= 4 or (budget_bdt and budget_bdt >= 900):
+        rec = next(p for p in OFFICIAL_PACKAGES if "70" in p["name"])
+        reason = "Our most popular best seller package (70 Mbps for ৳999/mo) offers the best balance of speed, low latency, and value for modern families."
+    elif budget_bdt and budget_bdt <= 800:
+        rec = next(p for p in OFFICIAL_PACKAGES if "32" in p["name"])
+        reason = "Budget-friendly 32 Mbps fiber connection (৳799/mo) with 100 Mbps BDIX for standard browsing and streaming."
     else:
-        rec = next(p for p in OFFICIAL_PACKAGES if "Fast" in p["name"])
-        reason = "Our most popular package (30 Mbps for ৳800/mo) offers the best balance of speed, stability, and value for typical households."
+        rec = next(p for p in OFFICIAL_PACKAGES if "50" in p["name"])
+        reason = "Family Choice 50 Mbps fiber package (৳840/mo) for bufferless UHD YouTube, HD Facebook, and multi-device households."
 
     return {
         "status": "success",

@@ -75,13 +75,17 @@ export interface KBArticleItem {
   id: string;
   title: string;
   slug: string;
-  category: 'troubleshooting' | 'billing' | 'router_setup' | 'bdix' | 'packages';
+  category: string;
   views: number;
   citationsByAI: number;
   lastUpdated: string;
   author: string;
   summary: string;
   content: string;
+  keywords?: string[];
+  is_published?: boolean;
+  has_embedding?: boolean;
+  chunk_count?: number;
 }
 
 export interface AgentMember {

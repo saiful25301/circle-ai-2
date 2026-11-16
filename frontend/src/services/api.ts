@@ -353,16 +353,141 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   // Knowledge Base & RAG
   // ---------------------------------------------------------------------------
-  async getKnowledgeBase(category?: string, search?: string): Promise<KnowledgeArticle[]> {
+  async getKnowledgeBase(category?: string, search?: string, includeUnpublished = true): Promise<KnowledgeArticle[]> {
     const params = new URLSearchParams();
     if (category && category !== 'all') params.append('category', category);
     if (search) params.append('search', search);
+    if (includeUnpublished) params.append('include_unpublished', 'true');
 
     const query = params.toString() ? `?${params.toString()}` : '';
     const res = await fetch(`${API_BASE}/rag/articles${query}`, {
       headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch knowledge base');
+    return res.json();
+  }
+
+  async getKnowledgeArticle(id: string): Promise<KnowledgeArticle> {
+    const res = await fetch(`${API_BASE}/rag/articles/${id}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch knowledge article');
+    return res.json();
+  }
+
+  async createKnowledgeArticle(payload: {
+    title: string;
+    category: string;
+    content: string;
+    summary?: string;
+    keywords?: string[];
+    is_published?: boolean;
+    author?: string;
+  }): Promise<any> {
+    const res = await fetch(`${API_BASE}/rag/articles`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to create knowledge article');
+    }
+    return res.json();
+  }
+
+  async updateKnowledgeArticle(
+    id: string,
+    payload: {
+      title?: string;
+      category?: string;
+      content?: string;
+      summary?: string;
+      keywords?: string[];
+      is_published?: boolean;
+      author?: string;
+    }
+  ): Promise<any> {
+    const res = await fetch(`${API_BASE}/rag/articles/${id}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update knowledge article');
+    }
+    return res.json();
+  }
+
+  async deleteKnowledgeArticle(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/rag/articles/${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete knowledge article');
+    }
+    return res.json();
+  }
+
+  async toggleKnowledgeArticleActive(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/rag/articles/${id}/toggle-active`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to toggle article status');
+    }
+    return res.json();
+  }
+
+  async uploadKnowledgeArticleFile(file: File, category = 'troubleshooting', author = 'NOC Field Engineering'): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+    formData.append('author', author);
+
+    const token = this.getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/rag/articles/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to upload document file');
+    }
+    return res.json();
+  }
+
+  async searchKnowledgeBaseSemantic(
+    query: string,
+    category?: string,
+    topK = 5,
+    minScore = 0.2
+  ): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/rag/search/semantic`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({
+        query,
+        category: category && category !== 'all' ? category : undefined,
+        top_k: topK,
+        min_score: minScore,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to perform semantic search');
+    }
     return res.json();
   }
 

@@ -21,6 +21,7 @@ from app.models import (
     Payment,
     Lead,
     KnowledgeDocument,
+    KnowledgeChunk,
     ToolLog,
     AIFeedback,
 )
@@ -34,6 +35,10 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            try:
+                await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN embedding JSON"))
+            except Exception:
+                pass
         logger.info("Database schema verified/created successfully.")
         
         # Seed initial data

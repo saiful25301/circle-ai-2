@@ -6,7 +6,7 @@ from app.models.conversation import Conversation, Message
 from app.models.ticket import Ticket
 from app.models.payment import Payment
 from app.models.lead import Lead
-from app.models.knowledge import KnowledgeDocument
+from app.models.knowledge import KnowledgeDocument, KnowledgeChunk
 from app.models.tool_log import ToolLog
 from app.models.ai_feedback import AIFeedback
 
@@ -21,6 +21,7 @@ __all__ = [
     "Payment",
     "Lead",
     "KnowledgeDocument",
+    "KnowledgeChunk",
     "ToolLog",
     "AIFeedback",
 ]
