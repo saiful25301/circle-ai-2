@@ -43,6 +43,7 @@ export interface Conversation {
   channel: string;
   status: 'ai_handling' | 'agent_handling' | 'resolved' | 'closed' | 'waiting_for_agent' | 'human_takeover' | 'AI_ACTIVE' | 'open' | string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
+  is_ai_handled?: boolean;
   assigned_agent_id?: string | null;
   metadata_info?: Record<string, any>;
   created_at: string;

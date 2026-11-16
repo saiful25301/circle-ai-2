@@ -11,6 +11,7 @@ import {
   MapPin,
   Building2,
   PhoneCall,
+  Plus,
 } from 'lucide-react';
 import { Message, Conversation } from '../../types';
 import { api } from '../../services/api';
@@ -28,13 +29,21 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load or initialize conversation
+  // Load or initialize active AI conversation
   useEffect(() => {
     async function init() {
       try {
         const convs = await api.getConversations();
-        if (convs.length > 0) {
-          setConversation(convs[0]);
+        // Look for an active AI conversation first
+        const activeAiConv = convs.find(
+          (c) =>
+            (c.customer_id === activeSubscriber || c.subscriber_id === activeSubscriber) &&
+            (c.status === 'ai_handling' || c.status === 'AI_ACTIVE' || c.status === 'open') &&
+            c.is_ai_handled !== false
+        );
+
+        if (activeAiConv) {
+          setConversation(activeAiConv);
         } else {
           const newConv = await api.createConversation(activeSubscriber);
           setConversation(newConv);
@@ -46,6 +55,18 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
     init();
   }, [activeSubscriber]);
 
+  const handleNewChat = async () => {
+    try {
+      setLoading(true);
+      const newConv = await api.createConversation(activeSubscriber);
+      setConversation(newConv);
+    } catch (err) {
+      console.error('Failed to create new conversation:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,31 +74,52 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputMessage).trim();
-    if (!text || !conversation) return;
+    if (!text) return;
+
+    let activeConv = conversation;
+    const isHumanHandoffOrClosed =
+      activeConv &&
+      (activeConv.status === 'agent_handling' ||
+        activeConv.status === 'waiting_for_agent' ||
+        activeConv.status === 'human_takeover' ||
+        activeConv.status === 'resolved' ||
+        activeConv.status === 'closed' ||
+        activeConv.is_ai_handled === false);
 
     setInputMessage('');
     setLoading(true);
 
     try {
+      if (!activeConv || activeConv.id.startsWith('mock-') || isHumanHandoffOrClosed) {
+        activeConv = await api.createConversation(activeSubscriber, text);
+        setConversation(activeConv);
+        onNewMessage?.();
+        return;
+      }
+
       // Optimistic message update
       const tempMsg: Message = {
         id: `temp-${Date.now()}`,
-        conversation_id: conversation.id,
+        conversation_id: activeConv.id,
         sender_type: 'customer',
         sender_name: activeSubscriber === 'CN-88214' ? 'Rashedul Hasan' : 'Tanvir Ahmed',
         content: text,
         created_at: new Date().toISOString(),
       };
 
-      setConversation(prev => prev ? {
-        ...prev,
-        messages: [...prev.messages, tempMsg]
-      } : null);
+      setConversation((prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: [...prev.messages, tempMsg],
+            }
+          : null
+      );
 
-      await api.sendMessage(conversation.id, text, 'customer', tempMsg.sender_name);
+      await api.sendMessage(activeConv.id, text, 'customer', tempMsg.sender_name);
 
       // Re-fetch conversation to sync latest AI reply and tool executions
-      const updated = await api.getConversation(conversation.id);
+      const updated = await api.getConversation(activeConv.id);
       setConversation(updated);
       onNewMessage?.();
     } catch (err) {
@@ -125,8 +167,17 @@ export const MessengerWidget: React.FC<MessengerWidgetProps> = ({ embedded = fal
           </div>
         </div>
 
-        {/* Subscriber Selector Demo Switch */}
+        {/* Subscriber Selector Demo Switch & New Chat */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleNewChat}
+            disabled={loading}
+            className="flex items-center gap-1 bg-white/10 hover:bg-white/20 active:scale-95 text-white px-2 py-1 rounded-lg text-xs font-semibold border border-white/20 transition-all cursor-pointer"
+            title="Start a new chat session with Circle AI"
+          >
+            <Plus className="w-3 h-3 text-emerald-300" />
+            <span>New Chat</span>
+          </button>
           <div className="flex items-center gap-1 bg-black/20 hover:bg-black/30 px-2 py-1 rounded-lg text-xs border border-white/10 transition-colors">
             <User className="w-3 h-3 text-emerald-200" />
             <select

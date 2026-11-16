@@ -27,6 +27,7 @@ api_router.include_router(packages.router, prefix="/packages", tags=["Internet P
 api_router.include_router(payments.router, prefix="/payments", tags=["Billing & Payments"])
 api_router.include_router(leads.router, prefix="/leads", tags=["Connection Leads"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI Agent & Function Calling"])
+api_router.include_router(ai.router, prefix="/chat", tags=["AI Agent Chat"])
 api_router.include_router(rag.router, prefix="/rag", tags=["Knowledge Base & RAG"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics & Reports"])
 api_router.include_router(websocket.router, tags=["WebSocket Real-Time"])

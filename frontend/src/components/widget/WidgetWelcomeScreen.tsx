@@ -15,7 +15,7 @@ import { MOCK_TEST_SUBSCRIBERS } from './types';
 
 interface WidgetWelcomeScreenProps {
   language: Language;
-  onStartChat: (initialMessage?: string) => void;
+  onStartChat: (initialMessage?: string, forceNew?: boolean) => void;
   recentConversation?: Conversation | null;
   activeSubscriberId: string;
 }
@@ -96,7 +96,7 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
       {/* Primary Action: Send us a Message (Golden-Amber Gradient) */}
       <button
         type="button"
-        onClick={() => onStartChat()}
+        onClick={() => onStartChat(undefined, true)}
         className="w-full bg-gradient-to-r from-amber-500 via-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white p-4 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-between group active:scale-[0.99]"
       >
         <div className="flex items-center gap-3 text-left">
@@ -124,7 +124,7 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
           </div>
           <button
             type="button"
-            onClick={() => onStartChat()}
+            onClick={() => onStartChat(undefined, false)}
             className="w-full text-left text-xs text-slate-700 hover:text-slate-900 line-clamp-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200 font-medium leading-relaxed"
           >
             {stripMarkdown(
@@ -157,7 +157,7 @@ export const WidgetWelcomeScreen: React.FC<WidgetWelcomeScreenProps> = ({
             <button
               key={item.id}
               type="button"
-              onClick={() => onStartChat(item.query)}
+              onClick={() => onStartChat(item.query, true)}
               className="text-left p-3 rounded-xl bg-white hover:bg-amber-50/70 border border-slate-200 hover:border-amber-300 text-xs text-slate-800 transition-all flex items-center justify-between group shadow-2xs hover:shadow-xs active:scale-[0.99]"
             >
               <div className="flex-1 pr-2">

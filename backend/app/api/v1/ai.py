@@ -1,3 +1,6 @@
+import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,9 +8,13 @@ from sqlalchemy import select, or_, and_, desc
 from app.core.database import get_db
 from app.models.tool_log import ToolLog
 from app.models.user import User
+from app.models.conversation import Conversation, Message
 from app.schemas.ai import AgentChatRequest, AgentChatResponse
 from app.services.ai.agent import process_chat, ISP_TOOLS_DEFINITIONS
+from app.core.websocket_manager import ws_manager
 from app.api.deps import get_current_user, require_role
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -15,6 +22,7 @@ router = APIRouter()
 require_audit_access = require_role(["admin", "supervisor", "noc_engineer", "agent"])
 
 
+@router.post("", response_model=AgentChatResponse)
 @router.post("/chat", response_model=AgentChatResponse)
 async def chat_with_agent(payload: AgentChatRequest, db: AsyncSession = Depends(get_db)):
     result = await process_chat(
@@ -23,6 +31,64 @@ async def chat_with_agent(payload: AgentChatRequest, db: AsyncSession = Depends(
         customer_id=payload.customer_id,
         db=db
     )
+
+    # If conversation exists in DB, persist messages and broadcast via WebSocket
+    try:
+        conv_res = await db.execute(select(Conversation).where(Conversation.id == payload.conversation_id))
+        conv = conv_res.scalar_one_or_none()
+        if conv:
+            now = datetime.now(timezone.utc)
+            # Add user message
+            user_msg = Message(
+                id=f"msg-{str(uuid.uuid4())[:8]}",
+                conversation_id=conv.id,
+                sender_type="customer",
+                sender_name=conv.customer_name or "Subscriber",
+                content=payload.message,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(user_msg)
+
+            # Add AI message
+            ai_content = result.get("reply") or result.get("response", "")
+            ai_msg = Message(
+                id=f"msg-{str(uuid.uuid4())[:8]}",
+                conversation_id=conv.id,
+                sender_type="ai_agent",
+                sender_name="Circle AI",
+                content=ai_content,
+                tool_calls=result.get("tool_calls"),
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(ai_msg)
+            conv.updated_at = now
+
+            if result.get("should_escalate") or result.get("escalate_to_human"):
+                conv.status = "waiting_for_agent"
+                conv.is_ai_handled = False
+
+            await db.commit()
+
+            ai_msg_dict = {
+                "id": ai_msg.id,
+                "conversation_id": conv.id,
+                "sender_type": ai_msg.sender_type,
+                "sender_name": ai_msg.sender_name,
+                "content": ai_msg.content,
+                "tool_calls": ai_msg.tool_calls,
+                "created_at": ai_msg.created_at.isoformat(),
+            }
+            await ws_manager.broadcast_to_conversation(conv.id, {
+                "type": "new_message",
+                "message": ai_msg_dict,
+                "event": "new_message",
+                "data": ai_msg_dict
+            })
+    except Exception as persist_err:
+        logger.warning(f"Could not persist ai/chat messages to db: {persist_err}")
+
     return AgentChatResponse(**result)
 
 

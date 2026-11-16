@@ -148,8 +148,8 @@ async def websocket_chat_endpoint(
 
                 can_ai_reply = (
                     conv is not None
-                    and conv.status in ["ai_handling", "AI_ACTIVE", "open"]
-                    and conv.is_ai_handled is True
+                    and str(conv.status).lower() in ["ai_handling", "ai_active", "open"]
+                    and conv.is_ai_handled is not False
                     and sender_type == "customer"
                 )
 
@@ -255,12 +255,45 @@ async def websocket_chat_endpoint(
                             })
 
                     except Exception as ai_err:
-                        logger.error(f"WebSocket AI agent error: {ai_err}")
+                        logger.error(f"WebSocket AI agent error: {ai_err}", exc_info=True)
                         # Turn off typing on error
                         await ws_manager.broadcast_to_conversation(
                             conversation_id,
                             {"type": "typing", "sender_type": "ai_agent", "is_typing": False}
                         )
+                        # Persist and broadcast fallback message
+                        fallback_text = (
+                            "দুঃখিত, এই মুহূর্তে সার্ভারে সাময়িক বিলম্ব হচ্ছে। আপনি সার্কেল নেটওয়ার্কের 24/7 হেল্পলাইন 16207-এ কল করতে পারেন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।"
+                            if any(ord(c) >= 0x0980 and ord(c) <= 0x09FF for c in content) else
+                            "We encountered a temporary processing delay. Please reach out to our 24/7 helpline at 16207 or retry in a moment."
+                        )
+                        fallback_msg = Message(
+                            id=f"msg-{str(uuid.uuid4())[:8]}",
+                            conversation_id=conversation_id,
+                            sender_type="ai_agent",
+                            sender_name="Circle AI",
+                            content=fallback_text,
+                            created_at=datetime.now(timezone.utc),
+                            updated_at=datetime.now(timezone.utc),
+                        )
+                        db.add(fallback_msg)
+                        await db.commit()
+
+                        fb_dict = {
+                            "id": fallback_msg.id,
+                            "conversation_id": conversation_id,
+                            "sender_type": fallback_msg.sender_type,
+                            "sender_name": fallback_msg.sender_name,
+                            "content": fallback_msg.content,
+                            "tool_calls": None,
+                            "created_at": fallback_msg.created_at.isoformat(),
+                        }
+                        await ws_manager.broadcast_to_conversation(conversation_id, {
+                            "type": "new_message",
+                            "message": fb_dict,
+                            "event": "new_message",
+                            "data": fb_dict
+                        })
 
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, conversation_id)

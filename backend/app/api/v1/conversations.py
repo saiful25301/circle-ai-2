@@ -208,6 +208,59 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
             updated_at=now,
         )
         db.add(user_msg)
+        await db.flush()
+
+        try:
+            ai_result = await process_chat(
+                conversation_id=cid,
+                user_message=payload.initial_message,
+                customer_id=conv.subscriber_id,
+                conversation_history=[{"role": "user", "content": payload.initial_message}],
+                db=db
+            )
+            ai_content = ai_result.get("reply") or ai_result.get("response") or "Thank you for reaching out to Circle Network."
+            ai_msg = Message(
+                id=f"msg-{str(uuid.uuid4())[:8]}",
+                conversation_id=cid,
+                sender_type="ai_agent",
+                sender_name="Circle AI",
+                content=ai_content,
+                tool_calls=ai_result.get("tool_calls"),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(ai_msg)
+
+            should_escalate = ai_result.get("should_escalate") or ai_result.get("escalate_to_human")
+            if should_escalate:
+                conv.status = "waiting_for_agent"
+                conv.priority = "urgent"
+                conv.is_ai_handled = False
+                meta = dict(conv.metadata_info or {})
+                meta["escalation_context"] = {
+                    "reason": ai_result.get("escalation_reason", "Customer requested human escalation"),
+                    "attempted_tools": [tc.get("tool_name") for tc in ai_result.get("tool_calls", [])],
+                    "subscriber_id": conv.subscriber_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                conv.metadata_info = meta
+        except Exception as e:
+            logger.error(f"Error generating initial AI response in create_conversation: {e}", exc_info=True)
+            fallback_text = (
+                "আসসালামু আলাইকুম! সার্কেল এআই সাপোর্ট সেন্টারে স্বাগতম। আপনার বার্তাটি পেয়েছি, কীভাবে সাহায্য করতে পারি? (হেল্পলাইন: ১৬২০৭)"
+                if any(ord(c) >= 0x0980 and ord(c) <= 0x09FF for c in payload.initial_message) else
+                "Hi there! 👋 Welcome to Circle Network. I'm Circle AI, your virtual ISP assistant. How can I assist you with your internet connection or billing today?"
+            )
+            fallback_msg = Message(
+                id=f"msg-{str(uuid.uuid4())[:8]}",
+                conversation_id=cid,
+                sender_type="ai_agent",
+                sender_name="Circle AI",
+                content=fallback_text,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(fallback_msg)
 
     await db.commit()
     await db.refresh(conv)
@@ -301,8 +354,8 @@ async def post_message(
     # AI triggers ONLY when customer speaks AND conversation is in AI mode
     can_ai_reply = (
         payload.sender_type == "customer"
-        and conv.status in ["ai_handling", "AI_ACTIVE", "open"]
-        and conv.is_ai_handled is True
+        and str(conv.status).lower() in ["ai_handling", "ai_active", "open"]
+        and conv.is_ai_handled is not False
     )
 
     if can_ai_reply:
@@ -398,11 +451,44 @@ async def post_message(
                 })
 
         except Exception as e:
-            logger.error(f"AI response processing error: {e}")
+            logger.error(f"AI response processing error: {e}", exc_info=True)
             await ws_manager.broadcast_to_conversation(
                 conversation_id,
                 {"type": "typing", "sender_type": "ai_agent", "is_typing": False}
             )
+            # Persist and broadcast fallback message so customer chat never silently hangs
+            fallback_text = (
+                "দুঃখিত, এই মুহূর্তে সার্ভারে সাময়িক বিলম্ব হচ্ছে। আপনি সার্কেল নেটওয়ার্কের 24/7 হেল্পলাইন 16207-এ কল করতে পারেন অথবা কিছুক্ষণ পর আবার চেষ্টা করুন।"
+                if any(ord(c) >= 0x0980 and ord(c) <= 0x09FF for c in payload.content) else
+                "We encountered a temporary processing delay. Please reach out to our 24/7 helpline at 16207 or retry in a moment."
+            )
+            fallback_msg = Message(
+                id=f"msg-{str(uuid.uuid4())[:8]}",
+                conversation_id=conversation_id,
+                sender_type="ai_agent",
+                sender_name="Circle AI",
+                content=fallback_text,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            db.add(fallback_msg)
+            await db.commit()
+
+            fb_dict = {
+                "id": fallback_msg.id,
+                "conversation_id": conversation_id,
+                "sender_type": fallback_msg.sender_type,
+                "sender_name": fallback_msg.sender_name,
+                "content": fallback_msg.content,
+                "tool_calls": None,
+                "created_at": fallback_msg.created_at.isoformat(),
+            }
+            await ws_manager.broadcast_to_conversation(conversation_id, {
+                "type": "new_message",
+                "message": fb_dict,
+                "event": "new_message",
+                "data": fb_dict
+            })
 
     return MessageResponse(
         id=new_msg.id,

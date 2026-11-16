@@ -12,6 +12,7 @@ import {
   Star,
   CheckCircle2,
   Send,
+  Plus,
 } from 'lucide-react';
 import { Conversation } from '../../types';
 import { Language, translations } from './localization/translations';
@@ -26,6 +27,7 @@ interface WidgetChatViewProps {
   error: string | null;
   onRetry: () => void;
   onRequestHumanSupport: () => void;
+  onNewChat?: () => void;
   activeSubscriberId: string;
 }
 
@@ -37,6 +39,7 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
   error,
   onRetry,
   onRequestHumanSupport,
+  onNewChat,
   activeSubscriberId,
 }) => {
   const t = translations[language];
@@ -111,16 +114,34 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
           </span>
         </div>
 
-        {!isHumanHandling && (
-          <button
-            type="button"
-            onClick={onRequestHumanSupport}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold transition-colors"
-          >
-            <UserCheck className="w-3 h-3" />
-            <span>{t.requestHumanSupport}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {onNewChat && (
+            <button
+              type="button"
+              onClick={onNewChat}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shadow-2xs active:scale-95 ${
+                isHumanHandling
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+              }`}
+              title={language === 'bn' ? 'নতুন চ্যাট শুরু করুন' : 'Start a new chat'}
+            >
+              <Plus className="w-3 h-3" />
+              <span>{language === 'bn' ? 'নতুন চ্যাট' : 'New Chat'}</span>
+            </button>
+          )}
+
+          {!isHumanHandling && (
+            <button
+              type="button"
+              onClick={onRequestHumanSupport}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold transition-colors"
+            >
+              <UserCheck className="w-3 h-3" />
+              <span>{t.requestHumanSupport}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error Banner (if any) */}

@@ -39,16 +39,22 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
     try {
       setError(null);
       const convs = await api.getConversations();
-      // Match active subscriber or take first
-      const found = convs.find(c => c.customer_id === activeSubscriberId) || convs[0];
-      if (found) {
-        // Strip out any internal notes for customer view
+      // Look for an active AI conversation first
+      const activeAiConv = convs.find(
+        (c) =>
+          c.customer_id === activeSubscriberId &&
+          (c.status === 'ai_handling' || c.status === 'AI_ACTIVE' || c.status === 'open') &&
+          c.is_ai_handled !== false
+      );
+
+      if (activeAiConv) {
         const sanitized = {
-          ...found,
-          messages: found.messages.filter(m => m.sender_type !== 'internal_note')
+          ...activeAiConv,
+          messages: activeAiConv.messages.filter((m) => m.sender_type !== 'internal_note'),
         };
         setConversation(sanitized);
       } else {
+        // Automatically start fresh active AI session if no active AI conversation exists
         const created = await api.createConversation(activeSubscriberId);
         setConversation(created);
       }
@@ -259,10 +265,45 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
     handleSendMessage(text);
   };
 
-  const handleStartChatFromWelcome = (initialMsg?: string) => {
+  const handleStartChatFromWelcome = async (initialMsg?: string, forceNew = true) => {
     setCurrentView('chat');
+    setError(null);
+
+    const isHumanHandoffOrClosed =
+      conversation &&
+      (conversation.status === 'agent_handling' ||
+        conversation.status === 'waiting_for_agent' ||
+        conversation.status === 'human_takeover' ||
+        conversation.status === 'resolved' ||
+        conversation.status === 'closed' ||
+        conversation.is_ai_handled === false);
+
+    if (forceNew || !conversation || conversation.id.startsWith('mock-') || isHumanHandoffOrClosed) {
+      try {
+        const freshConv = await api.createConversation(activeSubscriberId, initialMsg);
+        setConversation(freshConv);
+        return;
+      } catch (e) {
+        console.warn('Could not create new conversation, using local handling:', e);
+      }
+    }
+
     if (initialMsg) {
       handleSendMessage(initialMsg);
+    }
+  };
+
+  const handleNewChat = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const fresh = await api.createConversation(activeSubscriberId);
+      setConversation(fresh);
+      setCurrentView('chat');
+    } catch (err: any) {
+      console.error('Failed to create new conversation:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -321,6 +362,7 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
                   error={error}
                   onRetry={() => loadConversation()}
                   onRequestHumanSupport={handleRequestHumanSupport}
+                  onNewChat={handleNewChat}
                   activeSubscriberId={activeSubscriberId}
                 />
                 <WidgetMessageInput
