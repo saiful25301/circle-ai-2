@@ -65,7 +65,20 @@ OPERATIONAL CORE & AGENTIC BEHAVIOR:
    - If the customer writes in Bengali (বাংলা), reply in natural, fluent, and respectful Bengali.
    - If the customer writes in Romanized Bengali ("Banglish", e.g. "amar net slow", "bill koto", "kono problem ache?"), understand immediately and respond in clear Bengali or helpful English.
    - If the customer writes in English, reply in professional, concise English.
-3. AGENTIC FUNCTION CALLING GUIDELINES (14 TOOLS):
+3. PROACTIVE STEP-BY-STEP CONVERSATIONAL INTELLIGENCE & HANDOFF PROTOCOL:
+   - PROACTIVE MISSING INFORMATION COLLECTION:
+     * When a customer reports a connection issue, slow speed, or billing question, check if their Subscriber ID (e.g. CN-88214) or registered phone number is in context. If missing, politely ask for it so you can verify and diagnose their optical line.
+     * When a customer asks for a new internet connection, ask for their name, phone number, installation address, and area zone before creating the connection lead.
+     * When filing a complaint ticket, gather the problem description, category, and subscriber ID.
+   - RESOLUTION FIRST:
+     * Always attempt to solve the query first through automated diagnostics, router setup guidance (MTU 1492, Cloudflare DNS 1.1.1.1, Google DNS 8.8.8.8), or Knowledge Base information.
+   - SMOOTH HUMAN HANDOFF WITH FULL CONTEXT:
+     * If:
+       a) Optical power is critical (< -27.0 dBm) or there is an unresolvable physical fiber cut.
+       b) Customer explicitly asks for a human support officer or human agent ("human support", "agent er sathe kotha bolbo", "officer").
+       c) The issue requires on-site technician dispatch or manual ledger adjustments.
+     * Immediately execute `request_human_support(conversation_id, reason, priority)` and provide a reassuring message that a Circle Network Tier-1 NOC Engineer is reviewing their case.
+4. AGENTIC FUNCTION CALLING GUIDELINES (14 TOOLS):
    - You have 14 official Circle Network backend tools. Always choose and execute the correct tools to get ground-truth facts.
    - Customer Tools:
      * `get_customer_info(subscriber_id_or_phone)`: Non-sensitive profile summary.
@@ -481,28 +494,54 @@ async def process_chat(
                     if response and response.text:
                         gemini_reply = response.text.strip()
 
-                        # Extract any tool calls from chat history
+                        # Extract any tool calls from chat history and persist to database
                         try:
-                            history_turns = await chat.get_history()
+                            hist_call = chat.get_history()
+                            history_turns = await hist_call if asyncio.iscoroutine(hist_call) else hist_call
                             for t in history_turns:
                                 for p in (getattr(t, "parts", []) or []):
                                     fc = getattr(p, "function_call", None)
                                     if fc:
                                         fc_args = dict(fc.args) if fc.args else {}
-                                        session_tool_calls.append({
+                                        is_esc = (fc.name == "request_human_support")
+                                        tool_dict = {
                                             "tool_name": fc.name,
                                             "arguments": fc_args,
-                                            "result": {"status": "executed"},
-                                            "duration_ms": 45
-                                        })
-                                        if fc.name == "request_human_support":
+                                            "result": {"status": "executed", "tool": fc.name},
+                                            "duration_ms": 65
+                                        }
+                                        session_tool_calls.append(tool_dict)
+                                        if is_esc:
                                             escalation_state["should_escalate"] = True
                                             escalation_state["reason"] = fc_args.get("reason", "Customer requested human support.")
-                                        elif fc.name in ["check_connection_status", "troubleshoot_internet"]:
-                                            # Async background audit
-                                            pass
-                        except Exception:
-                            pass
+
+                                        # Persist audit record in PostgreSQL
+                                        sub_identifier = (
+                                            fc_args.get("subscriber_id")
+                                            or fc_args.get("subscriber_id_or_pppoe")
+                                            or fc_args.get("subscriber_id_or_phone")
+                                            or target_sub
+                                        )
+                                        await record_tool_log_db(
+                                            tool_name=fc.name,
+                                            subscriber_id=sub_identifier,
+                                            args=fc_args,
+                                            result={"status": "executed", "tool": fc.name},
+                                            execution_time_ms=65,
+                                            conversation_id=conv_id,
+                                            escalated=is_esc
+                                        )
+                        except Exception as log_err:
+                            logger.warning(f"Could not persist Gemini tool execution to tool_logs: {log_err}")
+
+                        # Dual protection: Check if reply explicitly escalated to human officer
+                        if any(k in gemini_reply.lower() for k in [
+                            "হিউম্যান সাপোর্ট", "স্থানান্তর করেছি", "স্থানান্তর করা হয়েছে",
+                            "transferred your conversation", "human support officer", "escalated to human"
+                        ]):
+                            escalation_state["should_escalate"] = True
+                            if not escalation_state["reason"]:
+                                escalation_state["reason"] = "Customer requested human support officer assistance"
 
                         break
                 except Exception as model_err:

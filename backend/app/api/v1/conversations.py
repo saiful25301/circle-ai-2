@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.conversation import Conversation, Message
 from app.models.customer import Customer
 from app.models.agent import Agent
+from app.models.ai_feedback import AIFeedback
 from app.schemas.conversation import (
     ConversationResponse,
     ConversationCreate,
@@ -18,6 +19,7 @@ from app.schemas.conversation import (
     ConversationStatusUpdate,
     ConversationAssignRequest,
     ConversationTransferRequest,
+    ConversationFeedbackCreate,
 )
 from app.services.ai.agent import process_chat
 from app.core.websocket_manager import ws_manager
@@ -619,3 +621,74 @@ async def update_conversation_status(
     )
 
     return await get_conversation(conversation_id, is_customer=False, db=db)
+
+
+@router.post("/{conversation_id}/feedback")
+async def submit_conversation_feedback(
+    conversation_id: str,
+    payload: ConversationFeedbackCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Save subscriber CSAT rating (1-5 stars) and feedback on resolved conversation in PostgreSQL.
+    """
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    conv = result.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+
+    # Clamping rating 1 to 5
+    rating_val = max(1, min(5, payload.rating))
+    now = datetime.now(timezone.utc)
+
+    # Determine sentiment if not provided
+    sentiment = payload.customer_sentiment
+    if not sentiment:
+        if rating_val >= 4:
+            sentiment = "positive"
+        elif rating_val == 3:
+            sentiment = "neutral"
+        else:
+            sentiment = "negative"
+
+    fb = AIFeedback(
+        id=f"fb-{str(uuid.uuid4())[:8]}",
+        conversation_id=conversation_id,
+        rating=rating_val,
+        is_resolved=True,
+        feedback_text=payload.feedback_text.strip() if payload.feedback_text else None,
+        customer_sentiment=sentiment,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(fb)
+
+    # Update conversation metadata
+    meta = dict(conv.metadata_info or {})
+    meta["csat_rating"] = rating_val
+    meta["csat_feedback"] = payload.feedback_text
+    meta["csat_submitted_at"] = now.isoformat()
+    conv.metadata_info = meta
+    conv.updated_at = now
+
+    await db.commit()
+
+    # Broadcast WebSocket update
+    await ws_manager.broadcast_to_conversation(
+        conversation_id,
+        {
+            "type": "feedback_submitted",
+            "conversation_id": conversation_id,
+            "rating": rating_val,
+            "sentiment": sentiment,
+        }
+    )
+
+    return {
+        "status": "success",
+        "message": "Customer feedback recorded successfully.",
+        "id": fb.id,
+        "conversation_id": conversation_id,
+        "rating": rating_val,
+        "sentiment": sentiment,
+    }

@@ -43,6 +43,12 @@ class ConversationTransferRequest(BaseModel):
     reason: str
 
 
+class ConversationFeedbackCreate(BaseModel):
+    rating: int  # 1 to 5
+    feedback_text: Optional[str] = None
+    customer_sentiment: Optional[str] = "positive"  # positive, neutral, negative
+
+
 class ConversationResponse(BaseModel):
     id: str
     customer_id: Optional[str] = None

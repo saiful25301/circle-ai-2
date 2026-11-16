@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from app.core.security import get_password_hash
 from app.models import (
     User,
@@ -154,8 +154,169 @@ async def ensure_knowledge_and_packages_seeded(db: AsyncSession) -> None:
             except Exception as e:
                 logger.warning(f"Error indexing legacy doc {d.title}: {e}")
 
+    # 4. Ensure realistic sample ToolLogs and AIFeedback exist for analytics
+    await ensure_analytics_data_seeded(db)
+
     await db.commit()
-    logger.info("Circle Network verified packages and Knowledge Base articles with embeddings synced!")
+    logger.info("Circle Network verified packages, Knowledge Base, and analytics seed synced!")
+
+
+async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
+    """Ensure baseline tool logs and customer feedback exist in PostgreSQL for realistic analytics."""
+    from datetime import timedelta
+    fb_check = await db.execute(select(func.count(AIFeedback.id)))
+    fb_count = fb_check.scalar() or 0
+
+    now = datetime.now(timezone.utc)
+
+    # Find an existing conversation ID to link
+    conv_res = await db.execute(select(Conversation.id).limit(3))
+    conv_ids = [r[0] for r in conv_res.all()]
+    if not conv_ids:
+        # Create a baseline conversation if none exists
+        demo_conv = Conversation(
+            id="conv-demo-analytics",
+            channel="webchat",
+            status="resolved",
+            priority="normal",
+            customer_name="Rashedul Hasan",
+            subscriber_id="CN-88214",
+            is_ai_handled=True,
+            created_at=now - timedelta(days=2),
+            updated_at=now - timedelta(days=2),
+        )
+        db.add(demo_conv)
+        await db.flush()
+        conv_ids = [demo_conv.id]
+
+    c_id = conv_ids[0]
+
+    if fb_count < 3:
+        sample_feedbacks = [
+            AIFeedback(
+                id=f"fb-seed-1",
+                conversation_id=c_id,
+                rating=5,
+                is_resolved=True,
+                feedback_text="Circle AI instantly verified my optical line power (-19.2 dBm). Very fast support!",
+                customer_sentiment="positive",
+                created_at=now - timedelta(hours=2),
+            ),
+            AIFeedback(
+                id=f"fb-seed-2",
+                conversation_id=c_id,
+                rating=5,
+                is_resolved=True,
+                feedback_text="Clear explanation on how to pay bill via bKash. Connection unblocked in 5 mins.",
+                customer_sentiment="positive",
+                created_at=now - timedelta(days=1),
+            ),
+            AIFeedback(
+                id=f"fb-seed-3",
+                conversation_id=c_id,
+                rating=4,
+                is_resolved=True,
+                feedback_text="Good package recommendations for 70 Mbps BDIX gaming.",
+                customer_sentiment="positive",
+                created_at=now - timedelta(days=3),
+            ),
+            AIFeedback(
+                id=f"fb-seed-4",
+                conversation_id=c_id,
+                rating=5,
+                is_resolved=True,
+                feedback_text="Smooth human handoff to NOC engineer Mahbub. Fixed fiber issue quickly.",
+                customer_sentiment="positive",
+                created_at=now - timedelta(days=5),
+            ),
+        ]
+        db.add_all(sample_feedbacks)
+
+    tool_check = await db.execute(select(func.count(ToolLog.id)))
+    tool_count = tool_check.scalar() or 0
+    if tool_count < 6:
+        sample_tools = [
+            ToolLog(
+                id="log-seed-1",
+                tool_name="check_connection_status",
+                conversation_id=c_id,
+                subscriber_id="CN-88214",
+                input_args={"subscriber_id_or_pppoe": "CN-88214"},
+                output_result={"status": "online", "optical_power_dbm": -19.2, "pon_port": "EPON0/2:4"},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=88,
+                confidence_score=0.98,
+                escalated=False,
+                created_at=now - timedelta(hours=3),
+            ),
+            ToolLog(
+                id="log-seed-2",
+                tool_name="get_available_packages",
+                conversation_id=c_id,
+                subscriber_id=None,
+                input_args={},
+                output_result={"count": 5, "packages": ["Circle Fiber 32 Mbps", "Circle Fiber 70 Mbps"]},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=64,
+                confidence_score=0.99,
+                escalated=False,
+                created_at=now - timedelta(hours=5),
+            ),
+            ToolLog(
+                id="log-seed-3",
+                tool_name="check_customer_bill",
+                conversation_id=c_id,
+                subscriber_id="CN-88214",
+                input_args={"subscriber_id_or_pppoe": "CN-88214"},
+                output_result={"monthly_bill_bdt": 999.0, "current_due_bdt": 0.0, "status": "paid"},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=92,
+                confidence_score=0.97,
+                escalated=False,
+                created_at=now - timedelta(days=1),
+            ),
+            ToolLog(
+                id="log-seed-4",
+                tool_name="check_service_coverage",
+                conversation_id=c_id,
+                subscriber_id=None,
+                input_args={"area_or_thana": "Uttara"},
+                output_result={"status": "active", "zone": "Uttara", "pop": "POP-Uttara-Sector3"},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=75,
+                confidence_score=0.99,
+                escalated=False,
+                created_at=now - timedelta(days=2),
+            ),
+            ToolLog(
+                id="log-seed-5",
+                tool_name="troubleshoot_internet",
+                conversation_id=c_id,
+                subscriber_id="CN-99412",
+                input_args={"subscriber_id_or_pppoe": "CN-99412", "issue_type": "red_los_light"},
+                output_result={"status": "critical", "optical_power_dbm": -28.9, "requires_technician": True},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=115,
+                confidence_score=0.99,
+                escalated=True,
+                created_at=now - timedelta(days=4),
+            ),
+            ToolLog(
+                id="log-seed-6",
+                tool_name="request_human_support",
+                conversation_id=c_id,
+                subscriber_id="CN-99412",
+                input_args={"conversation_id": c_id, "reason": "Optical fiber signal loss below -27 dBm"},
+                output_result={"status": "escalated", "assigned_desk": "Tier-1 NOC"},
+                gemini_model="gemini-3.5-flash-lite",
+                execution_time_ms=50,
+                confidence_score=1.0,
+                escalated=True,
+                created_at=now - timedelta(days=4),
+            ),
+        ]
+        db.add_all(sample_tools)
+
 
 
 async def seed_database(db: AsyncSession) -> None:

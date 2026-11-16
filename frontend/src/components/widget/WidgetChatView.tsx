@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   Bot,
   User,
@@ -9,10 +9,14 @@ import {
   RefreshCw,
   UserCheck,
   Sparkles,
+  Star,
+  CheckCircle2,
+  Send,
 } from 'lucide-react';
 import { Conversation } from '../../types';
 import { Language, translations } from './localization/translations';
 import { MOCK_TEST_SUBSCRIBERS } from './types';
+import { api } from '../../services/api';
 
 interface WidgetChatViewProps {
   language: Language;
@@ -56,6 +60,37 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
   };
 
   const isHumanHandling = conversation?.status === 'agent_handling';
+
+  const [selectedRating, setSelectedRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [feedbackText, setFeedbackText] = useState<string>('');
+  const [selectedTag, setSelectedTag] = useState<string>('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<boolean>(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState<boolean>(false);
+
+  const isResolved = conversation?.status === 'resolved' || conversation?.status === 'closed';
+  const hasSubmittedFeedback = feedbackSubmitted || Boolean((conversation?.metadata_info as any)?.csat_rating);
+
+  const handleSubmitFeedback = async () => {
+    if (!conversation?.id || selectedRating === 0) return;
+    setIsSubmittingFeedback(true);
+    try {
+      const combinedText = [selectedTag, feedbackText.trim()].filter(Boolean).join(' - ');
+      const sentiment = selectedRating >= 4 ? 'positive' : selectedRating === 3 ? 'neutral' : 'negative';
+
+      await api.submitConversationFeedback(conversation.id, {
+        rating: selectedRating,
+        feedback_text: combinedText || undefined,
+        customer_sentiment: sentiment,
+      });
+      setFeedbackSubmitted(true);
+    } catch (err) {
+      console.error('Failed to submit feedback:', err);
+      setFeedbackSubmitted(true);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
@@ -242,6 +277,103 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:0.15s]"></span>
               <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:0.3s]"></span>
             </div>
+          </div>
+        )}
+
+        {/* CSAT 1-5 Star Ratings Prompt upon Resolution */}
+        {isResolved && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-white border border-amber-300 shadow-sm space-y-3 animate-slideUp">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900">
+                  {language === 'bn' ? 'সার্কেল নেটওয়ার্ক কাস্টমার ফিডব্যাক' : 'Circle Network Service Feedback'}
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  {language === 'bn' ? 'আমাদের সাপোর্ট কেমন লাগলো? আপনার মূল্যবান রেটিং দিন:' : 'How was your support experience? Please rate our service:'}
+                </p>
+              </div>
+            </div>
+
+            {hasSubmittedFeedback ? (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>
+                  {language === 'bn'
+                    ? 'আপনার মতামতের জন্য ধন্যবাদ! সার্কেল নেটওয়ার্ক সবসময় আপনার সাথে আছে।'
+                    : 'Thank you for your feedback! Circle Network appreciates your review.'}
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* 5 Interactive Stars */}
+                <div className="flex items-center justify-center gap-2 py-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      onClick={() => setSelectedRating(star)}
+                      className="p-1 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                    >
+                      <Star
+                        className={`w-6 h-6 transition-colors ${
+                          (hoverRating || selectedRating) >= star
+                            ? 'fill-amber-400 text-amber-400 drop-shadow-xs'
+                            : 'text-slate-300 fill-slate-100'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Quick Feedback Chips */}
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {[
+                    language === 'bn' ? 'দ্রুত সমাধান' : 'Fast Resolution',
+                    language === 'bn' ? 'সহজ নির্দেশনা' : 'Clear Guidance',
+                    language === 'bn' ? 'বন্ধুত্বপূর্ণ সাপোর্ট' : 'Friendly Officer',
+                    language === 'bn' ? 'আরও দ্রুত হওয়া দরকার' : 'Needs Speedup',
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => setSelectedTag(selectedTag === chip ? '' : chip)}
+                      className={`text-[10px] px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+                        selectedTag === chip
+                          ? 'bg-amber-500 text-white border-amber-600 font-bold'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                      }`}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Optional Comment Input & Submit Button */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={feedbackText}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    placeholder={language === 'bn' ? 'অতিরিক্ত মন্তব্য লিখুন (ঐচ্ছিক)...' : 'Additional comments (optional)...'}
+                    className="flex-1 bg-white border border-slate-200 focus:border-amber-500 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={selectedRating === 0 || isSubmittingFeedback}
+                    onClick={handleSubmitFeedback}
+                    className="flex items-center gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-40 shadow-2xs cursor-pointer"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>{isSubmittingFeedback ? '...' : language === 'bn' ? 'পাঠান' : 'Submit'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

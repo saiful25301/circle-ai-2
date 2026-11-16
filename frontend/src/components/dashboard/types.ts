@@ -62,13 +62,14 @@ export interface AIToolActivityLog {
   timestamp: string;
   conversationId: string;
   subscriberId: string;
-  toolName: 'diagnose_onu_status' | 'check_subscriber_billing' | 'reboot_onu_session' | 'list_internet_plans';
+  toolName: string;
   inputArgs: Record<string, any>;
   outputResult: Record<string, any>;
   executionTimeMs: number;
   geminiModel: string;
   confidenceScore: number;
   escalated: boolean;
+  isSuccess?: boolean;
 }
 
 export interface KBArticleItem {

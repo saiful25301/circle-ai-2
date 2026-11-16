@@ -99,17 +99,44 @@ export interface SemanticSearchResultItem {
 }
 
 export interface DashboardStats {
+  time_range?: string;
   total_conversations: number;
   active_conversations: number;
+  ai_handled_conversations?: number;
+  human_handled_conversations?: number;
   ai_resolved_percentage: number;
   human_escalated_percentage: number;
   total_tickets: number;
   open_tickets: number;
+  resolved_tickets?: number;
+  active_agents_count?: number;
   average_response_time_seconds: number;
+  average_response_time_ms?: number;
   customer_satisfaction_score: number;
+  total_csat_ratings?: number;
+  csat_distribution?: Record<string, number>;
+  tool_execution_stats?: {
+    total: number;
+    success: number;
+    failure: number;
+    success_rate: number;
+    top_tools?: Array<{
+      tool_name: string;
+      count: number;
+      percentage: number;
+    }>;
+  };
   top_issues: Array<{
     category: string;
+    raw_key?: string;
     count: number;
     percentage: number;
   }>;
+  timeline_activity?: Array<{
+    date: string;
+    conversations: number;
+    tickets: number;
+    csat: number;
+  }>;
+  calculation_methodology?: Record<string, string>;
 }

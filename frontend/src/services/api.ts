@@ -342,11 +342,27 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   // Analytics & Reports
   // ---------------------------------------------------------------------------
-  async getAnalytics(): Promise<DashboardStats> {
-    const res = await fetch(`${API_BASE}/analytics/overview`, {
+  async getAnalytics(timeRange: 'today' | 'last_7_days' | 'last_30_days' | 'all_time' = 'last_30_days'): Promise<DashboardStats> {
+    const res = await fetch(`${API_BASE}/analytics/overview?time_range=${timeRange}`, {
       headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch analytics');
+    return res.json();
+  }
+
+  async submitConversationFeedback(
+    conversationId: string,
+    payload: { rating: number; feedback_text?: string; customer_sentiment?: string }
+  ): Promise<any> {
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}/feedback`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to submit customer feedback');
+    }
     return res.json();
   }
 
@@ -494,11 +510,33 @@ class ApiClient {
   // ---------------------------------------------------------------------------
   // AI Tool Logs
   // ---------------------------------------------------------------------------
-  async getAILogs(limit = 50): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/ai/logs?limit=${limit}`, {
+  async getAILogs(paramsOrLimit?: number | {
+    search?: string;
+    toolName?: string;
+    escalatedOnly?: boolean;
+    limit?: number;
+  }): Promise<any[]> {
+    const queryParams = new URLSearchParams();
+    if (typeof paramsOrLimit === 'number') {
+      queryParams.append('limit', String(paramsOrLimit));
+    } else if (paramsOrLimit) {
+      if (paramsOrLimit.search) queryParams.append('search', paramsOrLimit.search);
+      if (paramsOrLimit.toolName && paramsOrLimit.toolName !== 'all') queryParams.append('tool_name', paramsOrLimit.toolName);
+      if (paramsOrLimit.escalatedOnly) queryParams.append('escalated_only', 'true');
+      queryParams.append('limit', String(paramsOrLimit.limit || 100));
+    } else {
+      queryParams.append('limit', '100');
+    }
+
+    const res = await fetch(`${API_BASE}/ai/logs?${queryParams.toString()}`, {
       headers: this.getHeaders(),
     });
-    if (!res.ok) throw new Error('Failed to fetch AI tool execution logs');
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Access denied: Admin or Supervisor role required to view AI audit logs.');
+      }
+      throw new Error('Failed to fetch AI tool execution logs');
+    }
     return res.json();
   }
 
