@@ -8,12 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
 from app.core.exceptions import register_exception_handlers
 from app.core.seeder import seed_database
 from app.api.router import api_router
 from app.api.v1 import websocket
-# Import all 12 models to ensure they register on Base.metadata
+# Import all models to ensure they register on Base.metadata
 from app.models import (
     User,
     Agent,
@@ -35,30 +35,38 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure database schema is created and initial data is seeded
+    # 1. On PostgreSQL, try enabling pgvector extension in its own isolated transaction
     try:
         async with engine.begin() as conn:
-            # On PostgreSQL, enable pgvector extension if not already present
             if conn.dialect.name == "postgresql":
-                try:
-                    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-                    logger.info("PostgreSQL pgvector extension verified/enabled.")
-                except Exception as ext_err:
-                    logger.warning(f"pgvector extension check note: {ext_err}")
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                logger.info("PostgreSQL pgvector extension verified/enabled.")
+    except Exception as ext_err:
+        logger.warning(f"pgvector extension note (falling back to JSON): {ext_err}")
 
+    # 2. Create all database tables in a clean isolated transaction
+    try:
+        async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            try:
-                await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN embedding JSON"))
-            except Exception:
-                pass
         logger.info("Database schema verified/created successfully.")
-        
-        # Seed initial data
-        from app.core.database import AsyncSessionLocal
+    except Exception as schema_err:
+        logger.error(f"Database schema creation error: {schema_err}")
+
+    # 3. Ensure optional embedding column exists in an isolated transaction
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE knowledge_documents ADD COLUMN embedding JSON"))
+    except Exception:
+        pass
+
+    # 4. Seed initial data
+    try:
         async with AsyncSessionLocal() as session:
             await seed_database(session)
-    except Exception as e:
-        logger.warning(f"Database schema auto-creation encountered notice: {e}")
+        logger.info("Database seeding completed successfully.")
+    except Exception as seed_err:
+        logger.warning(f"Database seeding notice: {seed_err}")
+
     yield
     await engine.dispose()
 
@@ -169,7 +177,6 @@ app.add_middleware(
 # Mount API v1 router and direct websocket routes
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(websocket.router)
-
 
 
 @app.get("/")
