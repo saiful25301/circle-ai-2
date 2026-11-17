@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 import logging
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, Session
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,16 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 Base = declarative_base()
+
+
+@event.listens_for(Session, "before_flush")
+def _strip_timezone_before_flush(session, flush_context, instances):
+    """Ensure all datetime values are timezone-naive UTC for PostgreSQL asyncpg compatibility."""
+    for obj in list(session.new) + list(session.dirty):
+        for attr in obj.__mapper__.column_attrs:
+            val = getattr(obj, attr.key, None)
+            if isinstance(val, datetime) and val.tzinfo is not None:
+                setattr(obj, attr.key, val.astimezone(timezone.utc).replace(tzinfo=None))
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
