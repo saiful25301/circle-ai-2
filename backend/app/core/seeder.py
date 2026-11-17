@@ -23,6 +23,11 @@ from app.services.rag.retriever import REAL_CIRCLE_KNOWLEDGE_ARTICLES, index_doc
 logger = logging.getLogger(__name__)
 
 
+def utcnow_naive() -> datetime:
+    """Return timezone-naive UTC datetime compatible with PostgreSQL TIMESTAMP WITHOUT TIME ZONE."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 REAL_PACKAGES_SEED = [
     {
         "id": "pkg-1",
@@ -31,7 +36,7 @@ REAL_PACKAGES_SEED = [
         "bandwidth_mbps": 32,
         "bdix_speed_mbps": 100,
         "monthly_price_bdt": 799.0,
-        "description": "আবাসিক ব্রাউজিং ও বিনোদনের জন্য সাশ্রয়ী প্যাকেজ। বাফারলেস ফেসবুক ভিডিও ও এইচডি ইউটিউব স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ক্যাশ।",
+        "description": "আবাসিক ব্রাউজিং ও বিনোদনের জন্য সাশ্রয়ী প্যাকেজ। বাফারলেস ফেসবুক ভিডিও ও এইচডি ইউটিউব স্ট্রিমিং, ১০০ এমবিপিএস বিডিআইএক্স ক্যাশ।",
         "is_active": True,
     },
     {
@@ -51,7 +56,7 @@ REAL_PACKAGES_SEED = [
         "bandwidth_mbps": 70,
         "bdix_speed_mbps": 100,
         "monthly_price_bdt": 999.0,
-        "description": "সার্কেল নেটওয়ার্কের সর্বাধিক জনপ্রিয় বেস্ট সেলার হোম প্যাকেজ। সেরা গেমিং পিং, আল্ট্রা এইচডি স্ট্রিমিং ও ওয়ার্ক-ফ্রম-হোম।",
+        "description": "সার্কেল নেটওয়ার্কের সর্বাধিক জনপ্রিয় বেস্ট সেলার হোম প্যাকেজ। সেরা গেমিং পিং, আল্ট্রা এইচডি স্ট্রিমিং ও ওয়ার্ক-ফ্রম-হোম।",
         "is_active": True,
     },
     {
@@ -71,7 +76,7 @@ REAL_PACKAGES_SEED = [
         "bandwidth_mbps": 200,
         "bdix_speed_mbps": 300,
         "monthly_price_bdt": 2500.0,
-        "description": "গেমিং ইন্টারনেট ও পাওয়ার ইউজারদের জন্য আল্ট্রা-ফাস্ট প্যাকেজ। < ১৫ms লো পিং গেমিং, ফ্রি IPv6 পাবলিক আইপি ও ৩০০ Mbps বিডিআইএক্স।",
+        "description": "গেমিং ইন্টারনেট ও পাওয়ার ইউজারদের জন্য আল্ট্রা-ফাস্ট প্যাকেজ। < ১৫ms লো পিং গেমিং, ফ্রি IPv6 পাবলিক আইপি ও ৩০০ Mbps বিডিআইএক্স।",
         "is_active": True,
     },
 ]
@@ -109,7 +114,7 @@ async def ensure_knowledge_and_packages_seeded(db: AsyncSession) -> None:
             k_slug_res = await db.execute(select(KnowledgeDocument).where(KnowledgeDocument.slug == a_data["slug"]))
             doc = k_slug_res.scalar_one_or_none()
 
-        now = datetime.now(timezone.utc)
+        now = utcnow_naive()
         if doc:
             doc.title = a_data["title"]
             doc.category = a_data["category"]
@@ -167,7 +172,7 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
     fb_check = await db.execute(select(func.count(AIFeedback.id)))
     fb_count = fb_check.scalar() or 0
 
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
 
     # Find an existing conversation ID to link
     conv_res = await db.execute(select(Conversation.id).limit(3))
@@ -194,7 +199,7 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
     if fb_count < 3:
         sample_feedbacks = [
             AIFeedback(
-                id=f"fb-seed-1",
+                id="fb-seed-1",
                 conversation_id=c_id,
                 rating=5,
                 is_resolved=True,
@@ -203,7 +208,7 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
                 created_at=now - timedelta(hours=2),
             ),
             AIFeedback(
-                id=f"fb-seed-2",
+                id="fb-seed-2",
                 conversation_id=c_id,
                 rating=5,
                 is_resolved=True,
@@ -212,7 +217,7 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
                 created_at=now - timedelta(days=1),
             ),
             AIFeedback(
-                id=f"fb-seed-3",
+                id="fb-seed-3",
                 conversation_id=c_id,
                 rating=4,
                 is_resolved=True,
@@ -221,7 +226,7 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
                 created_at=now - timedelta(days=3),
             ),
             AIFeedback(
-                id=f"fb-seed-4",
+                id="fb-seed-4",
                 conversation_id=c_id,
                 rating=5,
                 is_resolved=True,
@@ -316,7 +321,6 @@ async def ensure_analytics_data_seeded(db: AsyncSession) -> None:
             ),
         ]
         db.add_all(sample_tools)
-
 
 
 async def seed_database(db: AsyncSession) -> None:
@@ -514,7 +518,7 @@ async def seed_database(db: AsyncSession) -> None:
             slug="troubleshoot-red-los-onu",
             category="troubleshooting",
             content="""When the LOS (Loss of Signal) light on your Circle Network ONU is blinking red:
-1. Do not bend or sharply pull the thin yellow fiber optic patch cord.
+1. Do not bend or sharply pull the thin yellow fiber optic patch 
 2. Check if the blue/green square SC/UPC connector is firmly inserted into the PON port until it clicks.
 3. If the drop wire from the outside pole was snagged or cut by utility workers, notify Circle AI to dispatch a fiber technician immediately.
 4. Optical power below -27 dBm will cause intermittent disconnection; normal signal is between -15 dBm and -24 dBm.""",
@@ -699,7 +703,7 @@ async def seed_database(db: AsyncSession) -> None:
         priority="normal",
         status="resolved",
         resolution_notes="Transaction verified with bKash merchant statement and account credited.",
-        resolved_at=datetime.now(timezone.utc),
+        resolved_at=utcnow_naive(),
     )
     db.add_all([tkt1, tkt2])
     await db.flush()
