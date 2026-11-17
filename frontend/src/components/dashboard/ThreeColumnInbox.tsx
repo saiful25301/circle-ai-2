@@ -21,7 +21,7 @@ import {
 import { Conversation, Customer } from '../../types';
 import { SubscriberContact } from './types';
 import { MOCK_SUBSCRIBERS } from './mockData';
-import { api } from '../../services/api';
+import { api, formatBangladeshTime } from '../../services/api';
 
 interface ThreeColumnInboxProps {
   conversations: Conversation[];
@@ -419,10 +419,7 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
                       {conv.channel === 'whatsapp' ? 'WhatsApp' : 'Webchat Widget'}
                     </span>
                     <span className="font-mono">
-                      {new Date(conv.updated_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatBangladeshTime(conv.updated_at)}
                     </span>
                   </div>
                 </div>
@@ -631,7 +628,7 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
                       <span className="text-amber-700 font-normal">• {m.sender_name || 'Agent'}</span>
                     </span>
                     <span className="text-[10px] font-mono text-amber-800/80">
-                      {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatBangladeshTime(m.created_at)}
                     </span>
                   </div>
                   <p className="whitespace-pre-wrap font-medium">{m.content}</p>
@@ -670,7 +667,7 @@ export const ThreeColumnInbox: React.FC<ThreeColumnInboxProps> = ({
                     </>
                   )}
                   <span className="text-slate-400 font-mono text-[10px]">
-                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {formatBangladeshTime(m.created_at)}
                   </span>
                 </div>
 

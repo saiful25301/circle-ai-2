@@ -42,6 +42,38 @@ export function getWebSocketUrl(path: string): string {
   return path;
 }
 
+/**
+ * Safely parses UTC or local ISO date strings from database/API and formats them
+ * in local Bangladesh time (Asia/Dhaka, UTC+6) with AM/PM (e.g. "12:34 PM").
+ * Handles timestamps without trailing 'Z' from PostgreSQL TIMESTAMP WITHOUT TIME ZONE columns
+ * by treating them as UTC so the browser accurately converts them to local Bangladesh time.
+ */
+export function formatBangladeshTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    let s = dateStr.trim();
+    // If timestamp lacks trailing 'Z' or offset, treat it as UTC
+    if (!s.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(s)) {
+      s = s.includes('T') ? `${s}Z` : `${s.replace(' ', 'T')}Z`;
+    }
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '';
+
+    try {
+      return d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Dhaka',
+      });
+    } catch {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+  } catch {
+    return '';
+  }
+}
+
 export interface AuthUser {
   id: string;
   email: string;

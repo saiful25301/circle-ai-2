@@ -17,7 +17,7 @@ import {
 import { Conversation } from '../../types';
 import { Language, translations } from './localization/translations';
 import { MOCK_TEST_SUBSCRIBERS } from './types';
-import { api } from '../../services/api';
+import { api, formatBangladeshTime } from '../../services/api';
 
 interface WidgetChatViewProps {
   language: Language;
@@ -53,13 +53,7 @@ export const WidgetChatView: React.FC<WidgetChatViewProps> = ({
   }, [conversation?.messages, loading]);
 
   const formatTimestamp = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return '';
-    }
+    return formatBangladeshTime(dateStr);
   };
 
   const isHumanHandling = conversation?.status === 'agent_handling';

@@ -126,17 +126,56 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
               // Never render internal notes in customer messenger
               if (data.message.sender_type === 'internal_note') return;
 
-              setIsAgentTyping(false);
+              const incoming: Message = data.message;
+              const isCustomerMsg = incoming.sender_type === 'customer';
+
+              // Turn off typing indicator when a reply arrives from AI or agent
+              if (!isCustomerMsg) {
+                setIsAgentTyping(false);
+              }
+
               setConversation(prev => {
                 if (!prev) return null;
-                // Avoid duplicates
-                if (prev.messages.some(m => m.id === data.message.id)) return prev;
-                const updated = { ...prev, messages: [...prev.messages, data.message] };
-                onMessageReceived?.(data.message);
+
+                // 1. Strict ID deduplication: ignore if this exact message ID is already present
+                if (prev.messages.some(m => m.id === incoming.id)) {
+                  return prev;
+                }
+
+                // 2. If incoming is customer message, match and replace pending optimistic/temporary message
+                if (isCustomerMsg) {
+                  const tempIndex = prev.messages.findIndex(
+                    m => (m.id.startsWith('temp-') || (m as any).isOptimistic) &&
+                         m.sender_type === 'customer' &&
+                         m.content.trim() === incoming.content.trim()
+                  );
+
+                  if (tempIndex !== -1) {
+                    const newMessages = [...prev.messages];
+                    newMessages[tempIndex] = incoming;
+                    onMessageReceived?.(incoming);
+                    return { ...prev, messages: newMessages };
+                  }
+
+                  // Fallback: match any pending temporary customer message
+                  const anyTempIdx = prev.messages.findIndex(
+                    m => m.id.startsWith('temp-') && m.sender_type === 'customer'
+                  );
+                  if (anyTempIdx !== -1) {
+                    const newMessages = [...prev.messages];
+                    newMessages[anyTempIdx] = incoming;
+                    onMessageReceived?.(incoming);
+                    return { ...prev, messages: newMessages };
+                  }
+                }
+
+                // 3. Otherwise append new incoming message
+                const updated = { ...prev, messages: [...prev.messages, incoming] };
+                onMessageReceived?.(incoming);
                 return updated;
               });
 
-              if (!isOpen && data.message.sender_type !== 'customer') {
+              if (!isOpen && !isCustomerMsg) {
                 setUnreadCount(prev => prev + 1);
               }
             }
@@ -205,7 +244,19 @@ export const CircleMessengerWidget: React.FC<WidgetProps> = ({
 
       await api.sendMessage(activeConv.id, text, 'customer', activeSub.name);
       const refreshed = await api.getConversation(activeConv.id);
-      setConversation(refreshed);
+      setConversation(prev => {
+        if (!prev) return refreshed;
+        // Merge refreshed server messages while preserving any other pending temp messages
+        const otherPendingTemps = prev.messages.filter(
+          m => m.id.startsWith('temp-') &&
+               m.id !== tempId &&
+               !refreshed.messages.some(rm => rm.sender_type === m.sender_type && rm.content.trim() === m.content.trim())
+        );
+        return {
+          ...refreshed,
+          messages: [...refreshed.messages, ...otherPendingTemps]
+        };
+      });
     } catch {
       // Local simulation fallback if network request fails
       await new Promise((r) => setTimeout(r, 1000));
