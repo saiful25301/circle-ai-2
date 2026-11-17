@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_, desc
-from app.core.database import get_db
+from app.core.database import get_db, utcnow_naive
 from app.models.tool_log import ToolLog
 from app.models.user import User
 from app.models.conversation import Conversation, Message
@@ -37,7 +37,7 @@ async def chat_with_agent(payload: AgentChatRequest, db: AsyncSession = Depends(
         conv_res = await db.execute(select(Conversation).where(Conversation.id == payload.conversation_id))
         conv = conv_res.scalar_one_or_none()
         if conv:
-            now = datetime.now(timezone.utc)
+            now = utcnow_naive()
             # Add user message
             user_msg = Message(
                 id=f"msg-{str(uuid.uuid4())[:8]}",

@@ -31,12 +31,12 @@ class Customer(Base):
     onu_mac = Column(String(50), default="E0:67:B3:91:AA:12")
     optical_power_dbm = Column(Float, default=-19.5)  # Healthy: -15 to -24 dBm; Critical: < -27 dBm
     connection_status = Column(String(50), default="online", index=True)  # online, offline, degraded
-    last_online_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    last_online_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
         nullable=False,
     )
 

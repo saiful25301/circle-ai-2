@@ -5,7 +5,7 @@ from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, delete
-from app.core.database import get_db
+from app.core.database import get_db, utcnow_naive
 from app.models.knowledge import KnowledgeDocument, KnowledgeChunk
 from app.schemas.rag import (
     KnowledgeArticleCreate,
@@ -146,7 +146,7 @@ async def create_article(payload: KnowledgeArticleCreate, db: AsyncSession = Dep
     """
     Create a new knowledge base document and automatically generate vector embeddings and chunks.
     """
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     doc_id = f"kb-{str(uuid.uuid4())[:8]}"
     base_slug = payload.slug or slugify(payload.title)
 
@@ -222,7 +222,7 @@ async def update_article(
     if payload.author is not None:
         doc.author = payload.author
 
-    doc.updated_at = datetime.now(timezone.utc)
+    doc.updated_at = utcnow_naive()
 
     # Re-index if content changed
     chunks_count = len(doc.chunks) if doc.chunks else 0
@@ -271,7 +271,7 @@ async def toggle_article_active(article_id: str, db: AsyncSession = Depends(get_
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge document not found")
 
     doc.is_published = not doc.is_published
-    doc.updated_at = datetime.now(timezone.utc)
+    doc.updated_at = utcnow_naive()
     await db.commit()
 
     return {

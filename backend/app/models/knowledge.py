@@ -21,11 +21,11 @@ class KnowledgeDocument(Base):
     is_published = Column(Boolean, default=True, index=True)
     author = Column(String(100), default="NOC Documentation Team")
     embedding = Column(JSON, nullable=True)  # Vector embedding stored as list of floats (dimension 768)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False, index=True)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
         nullable=False,
     )
 
@@ -42,7 +42,7 @@ class KnowledgeChunk(Base):
     chunk_index = Column(Integer, default=0, nullable=False)
     content = Column(Text, nullable=False)
     embedding = Column(JSON, nullable=True)  # 768-dimensional float vector for semantic search
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
 
     # Relationships
     document = relationship("KnowledgeDocument", back_populates="chunks")

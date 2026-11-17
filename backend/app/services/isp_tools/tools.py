@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, or_
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, utcnow_naive
 from app.models.customer import Customer
 from app.models.ticket import Ticket
 from app.models.lead import Lead
@@ -619,8 +619,8 @@ async def create_connection_lead(name: str, phone: str, address: str, zone: str,
                 zone=zone,
                 notes=f"Interested in package: {package_name}",
                 status="new",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             session.add(lead)
             await session.commit()
@@ -656,7 +656,7 @@ async def create_complaint_ticket(
     sub = await _fetch_customer_from_db(subscriber_id)
     ticket_num = f"TKT-2026-{str(uuid.uuid4().int)[:4]}"
     sla_hours = 4 if priority == "urgent" else 24
-    deadline_dt = datetime.now(timezone.utc) + timedelta(hours=sla_hours)
+    deadline_dt = utcnow_naive() + timedelta(hours=sla_hours)
     deadline_str = deadline_dt.strftime("%Y-%m-%d %H:%M UTC")
 
     sub_name = sub["full_name"] if sub else "Subscriber"
@@ -678,8 +678,8 @@ async def create_complaint_ticket(
                 optical_loss_dbm=optical_loss,
                 sla_deadline=deadline_dt,
                 resolution_notes="Ticket registered via Circle AI Agent. Awaiting field engineer dispatch.",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             session.add(ticket)
             await session.commit()
@@ -750,7 +750,7 @@ async def request_human_support(conversation_id: str, reason: str, priority: str
             if conv:
                 conv.status = "agent_handling"
                 conv.priority = priority
-                conv.updated_at = datetime.now(timezone.utc)
+                conv.updated_at = utcnow_naive()
                 await session.commit()
     except Exception:
         pass

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
-from app.core.database import get_db
+from app.core.database import get_db, utcnow_naive
 from app.models.conversation import Conversation, Message
 from app.models.customer import Customer
 from app.models.agent import Agent
@@ -156,7 +156,7 @@ async def get_conversation(
 async def create_conversation(payload: ConversationCreate, db: AsyncSession = Depends(get_db)):
     """Create a new customer chat conversation in database."""
     cid = f"conv-{str(uuid.uuid4())[:8]}"
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
 
     # Check if subscriber exists
     sub_name = "Subscriber"
@@ -226,8 +226,8 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
                 sender_name="Circle AI",
                 content=ai_content,
                 tool_calls=ai_result.get("tool_calls"),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             db.add(ai_msg)
 
@@ -257,8 +257,8 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
                 sender_type="ai_agent",
                 sender_name="Circle AI",
                 content=fallback_text,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             db.add(fallback_msg)
 
@@ -285,7 +285,7 @@ async def post_message(
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     msg_id = f"msg-{str(uuid.uuid4())[:8]}"
     is_internal_note = (payload.sender_type == "internal_note")
 
@@ -398,8 +398,8 @@ async def post_message(
                 sender_name="Circle AI",
                 content=ai_content,
                 tool_calls=ai_result.get("tool_calls"),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             db.add(ai_msg)
 
@@ -468,8 +468,8 @@ async def post_message(
                 sender_type="ai_agent",
                 sender_name="Circle AI",
                 content=fallback_text,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=utcnow_naive(),
+                updated_at=utcnow_naive(),
             )
             db.add(fallback_msg)
             await db.commit()
@@ -522,7 +522,7 @@ async def assign_conversation(
     agent = agent_res.scalar_one_or_none()
     agent_name = agent.name if agent else payload.agent_id
 
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     conv.assigned_agent_id = payload.agent_id
     conv.status = "agent_handling"
     conv.is_ai_handled = False
@@ -584,7 +584,7 @@ async def transfer_conversation(
     dest_agent_name = dest_agent.name if dest_agent else payload.to_agent_id
 
     old_agent_id = conv.assigned_agent_id
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     conv.assigned_agent_id = payload.to_agent_id
     conv.status = "agent_handling"
     conv.is_ai_handled = False
@@ -638,7 +638,7 @@ async def handback_to_ai(conversation_id: str, db: AsyncSession = Depends(get_db
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     conv.status = "ai_handling"
     conv.is_ai_handled = True
     conv.assigned_agent_id = None
@@ -680,7 +680,7 @@ async def update_conversation_status(
     if not conv:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     if payload.status:
         conv.status = payload.status
         if payload.status in ["agent_handling", "human_takeover"]:
@@ -725,7 +725,7 @@ async def submit_conversation_feedback(
 
     # Clamping rating 1 to 5
     rating_val = max(1, min(5, payload.rating))
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
 
     # Determine sentiment if not provided
     sentiment = payload.customer_sentiment

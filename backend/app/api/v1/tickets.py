@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.core.database import get_db
+from app.core.database import get_db, utcnow_naive
 from app.models.ticket import Ticket
 from app.models.customer import Customer
 from app.schemas.ticket import TicketCreate, TicketResponse, TicketUpdate
@@ -92,8 +92,8 @@ async def create_ticket(
         category=payload.category,
         priority=payload.priority,
         status="open",
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=utcnow_naive(),
+        updated_at=utcnow_naive(),
     )
     db.add(ticket)
     await db.commit()
@@ -126,7 +126,7 @@ async def update_ticket(
     if payload.status:
         tkt.status = payload.status
         if payload.status == "resolved":
-            tkt.resolved_at = datetime.now(timezone.utc)
+            tkt.resolved_at = utcnow_naive()
     if payload.priority:
         tkt.priority = payload.priority
     if payload.assigned_to:
@@ -134,7 +134,7 @@ async def update_ticket(
     if payload.category:
         tkt.category = payload.category
 
-    tkt.updated_at = datetime.now(timezone.utc)
+    tkt.updated_at = utcnow_naive()
     await db.commit()
 
     return {

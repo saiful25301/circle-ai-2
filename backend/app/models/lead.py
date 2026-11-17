@@ -18,11 +18,11 @@ class Lead(Base):
     package_id = Column(String(36), ForeignKey("packages.id", ondelete="SET NULL"), nullable=True, index=True)
     status = Column(String(50), default="new", index=True)  # new, contacted, survey_scheduled, installed, cancelled
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False, index=True)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
         nullable=False,
     )
 

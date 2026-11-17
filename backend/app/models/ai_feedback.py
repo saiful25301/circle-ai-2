@@ -16,11 +16,11 @@ class AIFeedback(Base):
     is_resolved = Column(Boolean, default=True, index=True)
     feedback_text = Column(Text, nullable=True)
     customer_sentiment = Column(String(50), default="positive", index=True)  # positive, neutral, negative
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False, index=True)
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
         nullable=False,
     )
 

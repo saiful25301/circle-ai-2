@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, and_, desc
-from app.core.database import get_db
+from app.core.database import get_db, utcnow_naive
 from app.models.conversation import Conversation, Message
 from app.models.ticket import Ticket
 from app.models.agent import Agent
@@ -24,7 +24,7 @@ async def get_analytics_overview(
     Supports dynamic date filters: 'today', 'last_7_days', 'last_30_days', and 'all_time'.
     Zero hardcoded numbers.
     """
-    now = datetime.now(timezone.utc)
+    now = utcnow_naive()
     start_date: Optional[datetime] = None
 
     if time_range == "today":

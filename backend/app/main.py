@@ -180,6 +180,7 @@ app.include_router(websocket.router)
 
 
 @app.get("/")
+@app.head("/")
 async def root():
     return {
         "app": settings.PROJECT_NAME,
@@ -191,7 +192,9 @@ async def root():
 
 
 @app.get("/health")
+@app.head("/health")
 @app.get("/api/v1/health")
+@app.head("/api/v1/health")
 async def health_check():
     db_status = "unknown"
     dialect = "unknown"

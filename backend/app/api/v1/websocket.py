@@ -5,7 +5,7 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
 from sqlalchemy import select
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, utcnow_naive
 from app.core.security import decode_access_token
 from app.core.websocket_manager import ws_manager
 from app.models.conversation import Conversation, Message
@@ -84,7 +84,7 @@ async def websocket_chat_endpoint(
                 continue
 
             msg_id = f"msg-{str(uuid.uuid4())[:8]}"
-            now = datetime.now(timezone.utc)
+            now = utcnow_naive()
             is_internal_note = (sender_type == "internal_note" or data.get("is_internal") is True)
 
             # Persist incoming message to database
@@ -187,7 +187,7 @@ async def websocket_chat_endpoint(
                         )
 
                         ai_msg_id = f"msg-{str(uuid.uuid4())[:8]}"
-                        ai_now = datetime.now(timezone.utc)
+                        ai_now = utcnow_naive()
                         ai_content = ai_res.get("reply") or ai_res.get("response") or "Thank you for reaching out to Circle Network."
                         ai_db_msg = Message(
                             id=ai_msg_id,
@@ -273,8 +273,8 @@ async def websocket_chat_endpoint(
                             sender_type="ai_agent",
                             sender_name="Circle AI",
                             content=fallback_text,
-                            created_at=datetime.now(timezone.utc),
-                            updated_at=datetime.now(timezone.utc),
+                            created_at=utcnow_naive(),
+                            updated_at=utcnow_naive(),
                         )
                         db.add(fallback_msg)
                         await db.commit()

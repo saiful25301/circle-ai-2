@@ -27,14 +27,22 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 
 
+def utcnow_naive() -> datetime:
+    """Return timezone-naive UTC datetime for PostgreSQL asyncpg compatibility."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 @event.listens_for(Session, "before_flush")
 def _strip_timezone_before_flush(session, flush_context, instances):
     """Ensure all datetime values are timezone-naive UTC for PostgreSQL asyncpg compatibility."""
-    for obj in list(session.new) + list(session.dirty):
-        for attr in obj.__mapper__.column_attrs:
-            val = getattr(obj, attr.key, None)
-            if isinstance(val, datetime) and val.tzinfo is not None:
-                setattr(obj, attr.key, val.astimezone(timezone.utc).replace(tzinfo=None))
+    try:
+        for obj in list(session.new) + list(session.dirty):
+            for attr in obj.__mapper__.column_attrs:
+                val = getattr(obj, attr.key, None)
+                if isinstance(val, datetime) and val.tzinfo is not None:
+                    setattr(obj, attr.key, val.astimezone(timezone.utc).replace(tzinfo=None))
+    except Exception as e:
+        logger.debug(f"before_flush timezone check notice: {e}")
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
