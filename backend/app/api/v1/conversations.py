@@ -158,20 +158,32 @@ async def create_conversation(payload: ConversationCreate, db: AsyncSession = De
     cid = f"conv-{str(uuid.uuid4())[:8]}"
     now = utcnow_naive()
 
-    # Check if subscriber exists
+    # Safely resolve customer profile (matching either primary key Customer.id or Customer.subscriber_id)
+    real_customer_id = None
+    resolved_subscriber_id = None
     sub_name = "Subscriber"
     sub_phone = None
-    if payload.customer_id:
-        sub_res = await db.execute(select(Customer).where(Customer.subscriber_id == payload.customer_id))
+
+    lookup_id = payload.customer_id
+    if lookup_id:
+        sub_res = await db.execute(
+            select(Customer).where(
+                or_(Customer.id == lookup_id, Customer.subscriber_id == lookup_id)
+            )
+        )
         sub = sub_res.scalar_one_or_none()
         if sub:
+            real_customer_id = sub.id
+            resolved_subscriber_id = sub.subscriber_id
             sub_name = sub.full_name
             sub_phone = sub.phone
+        else:
+            resolved_subscriber_id = lookup_id
 
     conv = Conversation(
         id=cid,
-        customer_id=payload.customer_id,
-        subscriber_id=payload.customer_id or "CN-88214",
+        customer_id=real_customer_id,
+        subscriber_id=resolved_subscriber_id,
         customer_name=sub_name,
         customer_phone=sub_phone,
         channel=payload.channel or "webchat",

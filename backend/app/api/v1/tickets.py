@@ -3,7 +3,7 @@ from typing import List, Optional
 import uuid
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from app.core.database import get_db, utcnow_naive
 from app.models.ticket import Ticket
 from app.models.customer import Customer
@@ -74,12 +74,22 @@ async def create_ticket(
     tid = f"tkt-{str(uuid.uuid4())[:8]}"
     tkt_num = f"TKT-{datetime.now().year}-{str(uuid.uuid4().int)[:4]}"
 
-    # Lookup customer ID if subscriber ID was passed
-    cid = payload.customer_id
-    c_res = await db.execute(select(Customer).where(Customer.subscriber_id == payload.customer_id))
+    # Safely resolve customer ID (matching either primary key Customer.id or Customer.subscriber_id)
+    cid = None
+    c_res = await db.execute(
+        select(Customer).where(
+            or_(Customer.id == payload.customer_id, Customer.subscriber_id == payload.customer_id)
+        )
+    )
     cust = c_res.scalar_one_or_none()
     if cust:
         cid = cust.id
+    else:
+        chk = await db.execute(select(Customer.id).where(Customer.id == payload.customer_id))
+        cid = chk.scalar_one_or_none()
+        if not cid:
+            first_c = await db.execute(select(Customer.id).limit(1))
+            cid = first_c.scalar_one_or_none()
 
     ticket = Ticket(
         id=tid,

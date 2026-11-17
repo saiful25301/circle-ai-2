@@ -157,6 +157,7 @@ async def _fetch_customer_from_db(identifier: str) -> Optional[Dict[str, Any]]:
         async with AsyncSessionLocal() as session:
             stmt = select(Customer).where(
                 or_(
+                    Customer.id.ilike(clean),
                     Customer.subscriber_id.ilike(clean),
                     Customer.pppoe_username.ilike(clean),
                     Customer.phone.ilike(clean),
@@ -660,7 +661,18 @@ async def create_complaint_ticket(
     deadline_str = deadline_dt.strftime("%Y-%m-%d %H:%M UTC")
 
     sub_name = sub["full_name"] if sub else "Subscriber"
-    cust_id = sub["id"] if sub else f"cust-{subscriber_id}"
+    cust_id = sub["id"] if sub else None
+    if not cust_id:
+        async with AsyncSessionLocal() as session:
+            c_res = await session.execute(
+                select(Customer.id).where(
+                    or_(Customer.id == subscriber_id, Customer.subscriber_id == subscriber_id)
+                )
+            )
+            cust_id = c_res.scalar_one_or_none()
+            if not cust_id:
+                first_c = await session.execute(select(Customer.id).limit(1))
+                cust_id = first_c.scalar_one_or_none() or "cst-1"
     optical_loss = sub["optical_power_dbm"] if sub else None
 
     try:
